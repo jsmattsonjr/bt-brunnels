@@ -1,5 +1,13 @@
 // Popup script for Biketerra Brunnels extension
 
+const BRIDGE_ICON = `<svg class="brunnel-icon" viewBox="0 0 147 71" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M74.5 5C39 5 35.5 24.5 5 24.5V66H19H33C36 41 46 24.5 74.5 24.5C101.5 24.5 111 40 116 66H142V24.5C111 24.5 108 5 74.5 5Z" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+const TUNNEL_ICON = `<svg class="brunnel-icon" viewBox="0 0 116 89" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M23.5 69.001V39.501C23.5 19.0011 40.7 5.90105 57.5 5.50105C74.3 5.10105 92 19.5 92 39.501V69.001M6 83L42.5 54.2961L57.5 42.5L72.7913 54.2961L110 83" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
 let detectedBrunnels = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -94,9 +102,11 @@ function displayResults(brunnels, totalDistance) {
     const endKm = (brunnel.endDistance).toFixed(2);
     const lengthM = ((brunnel.endDistance - brunnel.startDistance) * 1000).toFixed(0);
 
+    const icon = brunnel.type === 'bridge' ? BRIDGE_ICON : TUNNEL_ICON;
     item.innerHTML = `
-      <div>
-        <div class="brunnel-name">${brunnel.type === 'bridge' ? '🌉' : '🚇'} ${brunnel.name}</div>
+      ${icon}
+      <div class="brunnel-info">
+        <div class="brunnel-name">${brunnel.name}</div>
         <div class="brunnel-span">${startKm} - ${endKm} km (${lengthM}m)</div>
       </div>
     `;

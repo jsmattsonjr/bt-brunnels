@@ -211,6 +211,9 @@
       background: var(--bt-lowlight);
       cursor: pointer;
       transition: background 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
     }
 
     .brunnel-item:hover {
@@ -221,12 +224,24 @@
       margin-bottom: 0;
     }
 
-    .brunnel-item.bridge {
-      border-left: 3px solid var(--bt-a);
+    .brunnel-info {
+      flex: 1;
+      min-width: 0;
     }
 
-    .brunnel-item.tunnel {
-      border-left: 3px solid var(--bt-d);
+    .brunnel-icon {
+      width: 1.5rem;
+      height: 1rem;
+      flex-shrink: 0;
+    }
+
+    .brunnel-item.bridge .brunnel-icon path {
+      fill: var(--bt-a);
+      stroke: var(--bt-a);
+    }
+
+    .brunnel-item.tunnel .brunnel-icon path {
+      stroke: var(--bt-d);
     }
 
     .brunnel-item.applied {
