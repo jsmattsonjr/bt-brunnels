@@ -78,7 +78,7 @@ function displayResults(brunnels, totalDistance) {
   resultsDiv.innerHTML = '';
 
   if (brunnels.length === 0) {
-    resultsDiv.innerHTML = '<p style="color: #718096; text-align: center;">No brunnels found on this route.</p>';
+    resultsDiv.innerHTML = '<p class="empty-message">No brunnels found on this route.</p>';
     return;
   }
 

@@ -2,112 +2,257 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bt-a: #FF6262;
+      --bt-b: #DC5666;
+      --bt-c: #B14674;
+      --bt-d: #7F347C;
+      --bt-e: #572667;
+      --bt-9: #FC8174;
+      --bt-8: #FFA574;
+      --bt-7: #FFCD7C;
+      --bt-6: #FFE37D;
+      --bt-dark: #484044;
+      --bt-darker: #363033;
+      --bt-darkest: #242022;
+      --bt-mid: #908088;
+      --bt-light: #D6D0D3;
+      --bt-lighter: #E8E0E4;
+      --bt-offwhite: #F2F2F2;
+      --bt-offwhite-75: #F2F2F2BB;
+      --bt-offwhite-50: #F2F2F277;
+      --bt-lowlight: #24202066;
+      --bt-warn: #ffd438;
+      --bt-error: #7e2015;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       width: 320px;
-      padding: 16px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 1rem;
+      font-family: 'Overpass', sans-serif;
       font-size: 14px;
-      color: #333;
+      color: var(--bt-offwhite);
+      background: var(--bt-dark);
+      user-select: none;
     }
+
     h1 {
-      font-size: 16px;
-      margin: 0 0 12px 0;
-      color: #2c5282;
-    }
-    .status {
-      padding: 8px;
-      margin-bottom: 12px;
-      border-radius: 4px;
-      background: #f7fafc;
-      border: 1px solid #e2e8f0;
-    }
-    .status.error {
-      background: #fed7d7;
-      border-color: #fc8181;
-      color: #c53030;
-    }
-    .status.success {
-      background: #c6f6d5;
-      border-color: #68d391;
-      color: #276749;
-    }
-    button {
-      width: 100%;
-      padding: 10px 16px;
-      margin-bottom: 8px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    button.primary {
-      background: #3182ce;
-      color: white;
-    }
-    button.primary:hover {
-      background: #2c5282;
-    }
-    button.primary:disabled {
-      background: #a0aec0;
-      cursor: not-allowed;
-    }
-    button.secondary {
-      background: #e2e8f0;
-      color: #4a5568;
-    }
-    button.secondary:hover {
-      background: #cbd5e0;
-    }
-    .results {
-      max-height: 200px;
-      overflow-y: auto;
-      font-size: 12px;
-      margin-top: 12px;
-    }
-    .brunnel-item {
-      padding: 6px 8px;
-      margin-bottom: 4px;
-      border-radius: 4px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 0 0 1rem 0;
+      color: var(--bt-offwhite);
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: 0.5rem;
     }
-    .brunnel-item.bridge {
-      background: #fed7d7;
+
+    h1::before {
+      content: '';
+      display: inline-block;
+      width: 1.5rem;
+      height: 1.5rem;
+      background: linear-gradient(135deg, var(--bt-a), var(--bt-d));
+      border-radius: 0.25rem;
     }
-    .brunnel-item.tunnel {
-      background: #e9d8fd;
+
+    .status {
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      border-radius: 0.5rem;
+      background: var(--bt-lowlight);
+      color: var(--bt-light);
+      font-size: 0.85rem;
     }
-    .brunnel-name {
-      font-weight: 500;
+
+    .status.error {
+      background: var(--bt-error);
+      color: var(--bt-offwhite);
     }
-    .brunnel-span {
-      color: #718096;
-      font-size: 11px;
+
+    .status.success {
+      background: var(--bt-e);
+      color: var(--bt-offwhite);
     }
+
     .options {
-      margin-bottom: 12px;
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: var(--bt-lowlight);
+      border-radius: 0.5rem;
     }
+
     .option-row {
       display: flex;
       align-items: center;
-      margin-bottom: 6px;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
     }
+
+    .option-row:last-child {
+      margin-bottom: 0;
+    }
+
     .option-row label {
-      flex: 1;
+      color: var(--bt-light);
+      font-size: 0.85rem;
     }
+
     .option-row input[type="number"] {
-      width: 60px;
-      padding: 4px;
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
+      width: 4rem;
+      padding: 0.4rem 0.5rem;
+      border: none;
+      border-radius: 0.25rem;
+      background: var(--bt-darker);
+      color: var(--bt-offwhite);
+      font-family: 'Overpass', sans-serif;
+      font-size: 0.85rem;
+      text-align: right;
     }
+
+    .option-row input[type="number"]:focus {
+      outline: 2px solid var(--bt-a);
+      outline-offset: -2px;
+    }
+
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-family: 'Overpass', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--bt-a), var(--bt-b));
+      color: white;
+    }
+
+    button.primary:hover {
+      background: linear-gradient(135deg, var(--bt-9), var(--bt-a));
+    }
+
+    button.primary:disabled {
+      background: var(--bt-mid);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    button.secondary {
+      background: var(--bt-lowlight);
+      color: var(--bt-light);
+    }
+
+    button.secondary:hover {
+      background: var(--bt-darker);
+      color: var(--bt-offwhite);
+    }
+
     .progress {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #718096;
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      color: var(--bt-7);
+      background: var(--bt-lowlight);
+      border-radius: 0.5rem;
+    }
+
+    .results {
+      max-height: 220px;
+      overflow-y: auto;
+      font-size: 0.8rem;
+    }
+
+    .results::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .results::-webkit-scrollbar-track {
+      background: var(--bt-lowlight);
+      border-radius: 3px;
+    }
+
+    .results::-webkit-scrollbar-thumb {
+      background: var(--bt-mid);
+      border-radius: 3px;
+    }
+
+    .results::-webkit-scrollbar-thumb:hover {
+      background: var(--bt-light);
+    }
+
+    .brunnel-item {
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 0.4rem;
+      border-radius: 0.5rem;
+      background: var(--bt-lowlight);
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .brunnel-item:hover {
+      background: var(--bt-darker);
+    }
+
+    .brunnel-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .brunnel-item.bridge {
+      border-left: 3px solid var(--bt-a);
+    }
+
+    .brunnel-item.tunnel {
+      border-left: 3px solid var(--bt-d);
+    }
+
+    .brunnel-item.applied {
+      opacity: 0.6;
+    }
+
+    .brunnel-item.applied::after {
+      content: ' ✓';
+      color: var(--bt-6);
+    }
+
+    .brunnel-name {
+      font-weight: 500;
+      color: var(--bt-offwhite);
+      margin-bottom: 0.2rem;
+    }
+
+    .brunnel-span {
+      color: var(--bt-mid);
+      font-size: 0.75rem;
+    }
+
+    .empty-message {
+      color: var(--bt-mid);
+      text-align: center;
+      padding: 1rem;
     }
   </style>
 </head>
@@ -120,22 +265,24 @@
 
   <div class="options">
     <div class="option-row">
-      <label for="queryBuffer">Query buffer (m):</label>
+      <label for="queryBuffer">Query buffer (m)</label>
       <input type="number" id="queryBuffer" value="10" min="5" max="50">
     </div>
     <div class="option-row">
-      <label for="routeBuffer">Route buffer (m):</label>
+      <label for="routeBuffer">Route buffer (m)</label>
       <input type="number" id="routeBuffer" value="3" min="1" max="20">
     </div>
     <div class="option-row">
-      <label for="bearingTolerance">Bearing tolerance (°):</label>
+      <label for="bearingTolerance">Bearing tolerance (°)</label>
       <input type="number" id="bearingTolerance" value="20" min="5" max="45">
     </div>
   </div>
 
-  <button id="detectBtn" class="primary">Detect Brunnels</button>
-  <button id="applyBtn" class="primary" disabled>Apply All to Route</button>
-  <button id="clearBtn" class="secondary">Clear Results</button>
+  <div class="buttons">
+    <button id="detectBtn" class="primary">Detect Brunnels</button>
+    <button id="applyBtn" class="primary" disabled>Apply All to Route</button>
+    <button id="clearBtn" class="secondary">Clear Results</button>
+  </div>
 
   <div id="progress" class="progress" style="display: none;"></div>
 
