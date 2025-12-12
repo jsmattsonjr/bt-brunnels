@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #333;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 12px 0;
+      color: #2c5282;
+    }
+    .status {
+      padding: 8px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .status.error {
+      background: #fed7d7;
+      border-color: #fc8181;
+      color: #c53030;
+    }
+    .status.success {
+      background: #c6f6d5;
+      border-color: #68d391;
+      color: #276749;
+    }
+    button {
+      width: 100%;
+      padding: 10px 16px;
+      margin-bottom: 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    button.primary {
+      background: #3182ce;
+      color: white;
+    }
+    button.primary:hover {
+      background: #2c5282;
+    }
+    button.primary:disabled {
+      background: #a0aec0;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: #e2e8f0;
+      color: #4a5568;
+    }
+    button.secondary:hover {
+      background: #cbd5e0;
+    }
+    .results {
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+    .brunnel-item {
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brunnel-item.bridge {
+      background: #fed7d7;
+    }
+    .brunnel-item.tunnel {
+      background: #e9d8fd;
+    }
+    .brunnel-name {
+      font-weight: 500;
+    }
+    .brunnel-span {
+      color: #718096;
+      font-size: 11px;
+    }
+    .options {
+      margin-bottom: 12px;
+    }
+    .option-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .option-row label {
+      flex: 1;
+    }
+    .option-row input[type="number"] {
+      width: 60px;
+      padding: 4px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+    }
+    .progress {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #718096;
+    }
+  </style>
+</head>
+<body>
+  <h1>Biketerra Brunnels</h1>
+
+  <div id="status" class="status">
+    Ready. Open a route in the Biketerra editor.
+  </div>
+
+  <div class="options">
+    <div class="option-row">
+      <label for="queryBuffer">Query buffer (m):</label>
+      <input type="number" id="queryBuffer" value="10" min="5" max="50">
+    </div>
+    <div class="option-row">
+      <label for="routeBuffer">Route buffer (m):</label>
+      <input type="number" id="routeBuffer" value="3" min="1" max="20">
+    </div>
+    <div class="option-row">
+      <label for="bearingTolerance">Bearing tolerance (°):</label>
+      <input type="number" id="bearingTolerance" value="20" min="5" max="45">
+    </div>
+  </div>
+
+  <button id="detectBtn" class="primary">Detect Brunnels</button>
+  <button id="applyBtn" class="primary" disabled>Apply All to Route</button>
+  <button id="clearBtn" class="secondary">Clear Results</button>
+
+  <div id="progress" class="progress" style="display: none;"></div>
+
+  <div id="results" class="results"></div>
+
+  <script src="js/popup.js"></script>
+</body>
+</html>

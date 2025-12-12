@@ -1,0 +1,172 @@
+/* Biketerra Brunnels Extension - Content Script Styles */
+
+.bt-brunnels-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 280px;
+  max-height: 400px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.bt-brunnels-header {
+  padding: 12px;
+  background: #2c5282;
+  color: white;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bt-brunnels-close {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+.bt-brunnels-content {
+  padding: 12px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.bt-brunnels-status {
+  padding: 8px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.bt-brunnels-status.loading {
+  background: #ebf8ff;
+  border-color: #90cdf4;
+}
+
+.bt-brunnels-status.error {
+  background: #fed7d7;
+  border-color: #fc8181;
+  color: #c53030;
+}
+
+.bt-brunnels-status.success {
+  background: #c6f6d5;
+  border-color: #68d391;
+  color: #276749;
+}
+
+.bt-brunnels-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.bt-brunnel-item {
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.bt-brunnel-item:hover {
+  opacity: 0.8;
+}
+
+.bt-brunnel-item.bridge {
+  background: #fed7d7;
+  border-left: 3px solid #e53e3e;
+}
+
+.bt-brunnel-item.tunnel {
+  background: #e9d8fd;
+  border-left: 3px solid #805ad5;
+}
+
+.bt-brunnel-item.applied {
+  opacity: 0.5;
+}
+
+.bt-brunnel-item.applied::after {
+  content: ' ✓';
+  color: #38a169;
+}
+
+.bt-brunnel-name {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.bt-brunnel-span {
+  font-size: 11px;
+  color: #718096;
+}
+
+.bt-brunnels-actions {
+  padding: 12px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 8px;
+}
+
+.bt-brunnels-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bt-brunnels-btn.primary {
+  background: #3182ce;
+  color: white;
+}
+
+.bt-brunnels-btn.primary:hover {
+  background: #2c5282;
+}
+
+.bt-brunnels-btn.primary:disabled {
+  background: #a0aec0;
+  cursor: not-allowed;
+}
+
+.bt-brunnels-btn.secondary {
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.bt-brunnels-btn.secondary:hover {
+  background: #cbd5e0;
+}
+
+/* Highlight overlay for elevation graph preview */
+.bt-elevation-highlight {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(49, 130, 206, 0.3);
+  pointer-events: none;
+  z-index: 100;
+}
+
+.bt-elevation-highlight.bridge {
+  background: rgba(229, 62, 62, 0.3);
+}
+
+.bt-elevation-highlight.tunnel {
+  background: rgba(128, 90, 213, 0.3);
+}
