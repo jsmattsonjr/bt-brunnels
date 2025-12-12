@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Biketerra Brunnels",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Automatically detect and apply bridges/tunnels from OpenStreetMap to Biketerra routes",
   "permissions": [
     "activeTab",

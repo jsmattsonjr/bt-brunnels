@@ -37,21 +37,10 @@
       return turf.buffer(route.turfLineString, bufferKilometers, { units: 'kilometers' });
     },
 
+    // Extract cumulative distances from Biketerra's embedded route data
+    // Each coordinate has a 'distance' property with cumulative meters
     calculateCumulativeDistances(routeCoords) {
-      const distances = [0];
-      let totalDistance = 0;
-
-      for (let i = 1; i < routeCoords.length; i++) {
-        const segmentDistance = turf.distance(
-          turf.point(CoordinateUtils.toTurfCoords([routeCoords[i - 1]])[0]),
-          turf.point(CoordinateUtils.toTurfCoords([routeCoords[i]])[0]),
-          { units: 'meters' }
-        );
-        totalDistance += segmentDistance;
-        distances.push(totalDistance);
-      }
-
-      return distances;
+      return routeCoords.map(coord => coord.distance);
     },
 
     brunnelWithin(brunnel, routeBuffer) {
@@ -68,6 +57,9 @@
       return intersections.features.length === 0;
     },
 
+    // Calculate route span using Turf for projection, but Biketerra's distances for positioning
+    // This finds where on the route line the brunnel endpoints project to,
+    // then uses Biketerra's embedded cumulative distances for accurate placement
     calculateRouteSpan(brunnel, route) {
       if (brunnel.geometry.length === 0) return null;
 
@@ -75,16 +67,82 @@
       const startPoint = brunnel.turfPoints[0];
       const endPoint = brunnel.turfPoints[brunnel.turfPoints.length - 1];
 
+      // Use Turf to find projection point and segment index
       const startNearest = turf.nearestPointOnLine(routeLine, startPoint);
       const endNearest = turf.nearestPointOnLine(routeLine, endPoint);
 
-      const startDistance = startNearest.properties.location;
-      const endDistance = endNearest.properties.location;
+      // Convert Turf's location (based on its distance calc) to Biketerra's distances
+      // by finding which segment we're on and interpolating
+      const startDistance = this.turfLocationToBiketerraDistance(startNearest, route);
+      const endDistance = this.turfLocationToBiketerraDistance(endNearest, route);
 
       return {
         startDistance: Math.min(startDistance, endDistance),
         endDistance: Math.max(startDistance, endDistance)
       };
+    },
+
+    // Convert a Turf nearestPointOnLine result to Biketerra's distance system
+    // Uses Turf's calculated location (km) and maps it to Biketerra's distance scale
+    turfLocationToBiketerraDistance(nearestResult, route) {
+      // Turf's location is in km along the route (using Haversine)
+      const turfLocationKm = nearestResult.properties.location;
+
+      // We need to find which segment this falls into using Biketerra's distances
+      // and interpolate within that segment
+      const coords = route.coordinates;
+
+      // Build cumulative Turf distances for comparison
+      // (we need to find where turfLocationKm falls in terms of segment index)
+      let turfCumulative = 0;
+      let segmentIndex = 0;
+
+      for (let i = 0; i < coords.length - 1; i++) {
+        const p1 = coords[i];
+        const p2 = coords[i + 1];
+        const segmentDist = turf.distance(
+          turf.point([p1.lon, p1.lat]),
+          turf.point([p2.lon, p2.lat]),
+          { units: 'kilometers' }
+        );
+
+        if (turfCumulative + segmentDist >= turfLocationKm) {
+          segmentIndex = i;
+          break;
+        }
+        turfCumulative += segmentDist;
+        segmentIndex = i + 1;
+      }
+
+      // Clamp to valid range
+      segmentIndex = Math.min(segmentIndex, coords.length - 2);
+
+      const p1 = coords[segmentIndex];
+      const p2 = coords[segmentIndex + 1];
+
+      // Calculate how far along this segment (using Turf distances)
+      const segmentStartTurf = turfCumulative;
+      const segmentLengthTurf = turf.distance(
+        turf.point([p1.lon, p1.lat]),
+        turf.point([p2.lon, p2.lat]),
+        { units: 'kilometers' }
+      );
+
+      let t = 0;
+      if (segmentLengthTurf > 0) {
+        t = Math.min(1, Math.max(0, (turfLocationKm - segmentStartTurf) / segmentLengthTurf));
+      }
+
+      // Interpolate using Biketerra's distances
+      const dist1 = p1.distance; // meters
+      const dist2 = p2.distance; // meters
+      const interpolatedDistance = dist1 + t * (dist2 - dist1);
+
+      console.log(`  Turf location: ${turfLocationKm.toFixed(3)}km -> segment ${segmentIndex}, t=${t.toFixed(4)}`);
+      console.log(`  Biketerra: ${(dist1/1000).toFixed(3)}km - ${(dist2/1000).toFixed(3)}km -> ${(interpolatedDistance/1000).toFixed(3)}km`);
+
+      // Return in km
+      return interpolatedDistance / 1000;
     },
 
     getRouteSegment(routeCoords, cumulativeDistances, startDist, endDist) {
@@ -639,6 +697,7 @@ out geom qt;`;
     },
 
     // Get the current visible range of the elevation chart (in km)
+    // Uses intermediate tick marks for higher precision when available
     getChartVisibleRange() {
       const firstTick = document.querySelector('.elev-scale-first-tick');
       const lastTick = document.querySelector('.elev-scale-last-tick');
@@ -662,7 +721,49 @@ out geom qt;`;
         return null;
       }
 
-      return { startKm, endKm, rangeKm: endKm - startKm };
+      // Try to get more precise range from intermediate ticks
+      const intermediateTicks = document.querySelectorAll('.elev-scale-tick');
+      let percentPerKm = null;
+
+      if (intermediateTicks.length >= 2) {
+        // Parse two adjacent ticks to calculate precise ratio
+        const tickData = [];
+        for (const tick of intermediateTicks) {
+          const leftMatch = tick.style.left.match(/([\d.]+)%/);
+          const label = tick.querySelector('.elev-scale-tick-label');
+          if (leftMatch && label) {
+            const leftPercent = parseFloat(leftMatch[1]);
+            const km = parseKm(label.textContent);
+            if (km !== null) {
+              tickData.push({ leftPercent, km });
+            }
+          }
+        }
+
+        if (tickData.length >= 2) {
+          // Calculate percent per km from two ticks
+          const t1 = tickData[0];
+          const t2 = tickData[1];
+          const deltaPercent = t2.leftPercent - t1.leftPercent;
+          const deltaKm = t2.km - t1.km;
+          if (deltaKm > 0) {
+            percentPerKm = deltaPercent / deltaKm;
+            // Calculate more precise start/end using tick data
+            const preciseStartKm = t1.km - (t1.leftPercent / percentPerKm);
+            const preciseEndKm = t1.km + ((100 - t1.leftPercent) / percentPerKm);
+
+            return {
+              startKm: preciseStartKm,
+              endKm: preciseEndKm,
+              rangeKm: preciseEndKm - preciseStartKm,
+              percentPerKm,
+              precise: true
+            };
+          }
+        }
+      }
+
+      return { startKm, endKm, rangeKm: endKm - startKm, precise: false };
     },
 
     // Trigger mouse interaction to update chart labels
@@ -917,22 +1018,33 @@ out geom qt;`;
         return this._performSelection(chart, rect, startPx, endPx, centerY);
       }
 
-      console.log(`Visible range: ${visibleRange.startKm.toFixed(2)}km - ${visibleRange.endKm.toFixed(2)}km (${visibleRange.rangeKm.toFixed(2)}km)`);
+      console.log(`Visible range: ${visibleRange.startKm.toFixed(3)}km - ${visibleRange.endKm.toFixed(3)}km (${visibleRange.rangeKm.toFixed(3)}km, precise: ${visibleRange.precise})`);
       console.log(`Selection target: ${startKm.toFixed(3)}km - ${endKm.toFixed(3)}km (${((endKm - startKm) * 1000).toFixed(0)}m)`);
 
       // Calculate pixel positions based on visible range
-      const startRelative = (startKm - visibleRange.startKm) / visibleRange.rangeKm;
-      const endRelative = (endKm - visibleRange.startKm) / visibleRange.rangeKm;
+      // Use percentPerKm if available for higher precision
+      let startPx, endPx;
+      if (visibleRange.percentPerKm) {
+        // High precision: use the calculated percent per km
+        const startPercent = (startKm - visibleRange.startKm) * visibleRange.percentPerKm;
+        const endPercent = (endKm - visibleRange.startKm) * visibleRange.percentPerKm;
+        startPx = rect.left + (startPercent / 100) * rect.width;
+        endPx = rect.left + (endPercent / 100) * rect.width;
+        console.log(`Using precise percentPerKm: ${visibleRange.percentPerKm.toFixed(2)}%/km`);
+      } else {
+        // Standard precision: use start/end range
+        const startRelative = (startKm - visibleRange.startKm) / visibleRange.rangeKm;
+        const endRelative = (endKm - visibleRange.startKm) / visibleRange.rangeKm;
+        startPx = rect.left + (startRelative * rect.width);
+        endPx = rect.left + (endRelative * rect.width);
+      }
 
-      const startPx = rect.left + (startRelative * rect.width);
-      const endPx = rect.left + (endRelative * rect.width);
       const centerY = rect.top + (rect.height / 2);
-
       const pixelWidth = endPx - startPx;
       const metersPerPixel = (visibleRange.rangeKm * 1000) / rect.width;
 
       console.log(`Pixel positions: start=${startPx.toFixed(1)}px, end=${endPx.toFixed(1)}px`);
-      console.log(`Selection width: ${pixelWidth.toFixed(1)}px (${metersPerPixel.toFixed(1)}m/px)`);
+      console.log(`Selection width: ${pixelWidth.toFixed(1)}px (${metersPerPixel.toFixed(2)}m/px)`);
 
       // IMPORTANT: First move mouse to start position WITHOUT shift
       // This ensures Svelte's internal cursor position is at our start
@@ -1049,14 +1161,26 @@ out geom qt;`;
       console.log(`${type} button click sequence complete`);
     },
 
-    // Apply a single brunnel (assumes chart is already zoomed if needed)
+    // Apply a single brunnel (assumes chart is already zoomed)
+    // Pans to center on the brunnel for precise placement
     async applyBrunnel(brunnel, totalDistance) {
       const startKm = brunnel.startDistance;
       const endKm = brunnel.endDistance;
+      const centerKm = (startKm + endKm) / 2;
       const spanMeters = (endKm - startKm) * 1000;
 
       console.log(`=== Applying ${brunnel.type}: ${brunnel.name} ===`);
       console.log(`  Location: ${startKm.toFixed(3)}km - ${endKm.toFixed(3)}km (${spanMeters.toFixed(0)}m span)`);
+
+      // Pan to center on this brunnel for accurate placement
+      await this.panChartTo(centerKm, totalDistance);
+      await this.triggerChartUpdate();
+
+      // Log the visible range for debugging
+      const visibleRange = this.getChartVisibleRange();
+      if (visibleRange) {
+        console.log(`  Visible: ${visibleRange.startKm.toFixed(3)}km - ${visibleRange.endKm.toFixed(3)}km (precise: ${visibleRange.precise})`);
+      }
 
       // Make the selection using actual km values
       await this.simulateSelection(startKm, endKm, totalDistance);
@@ -1072,11 +1196,11 @@ out geom qt;`;
       console.log(`Applying ${brunnels.length} brunnels with precision zoom`);
 
       // Zoom to a good precision level (500m visible range = ~0.35m/pixel)
-      // Zoom centered on the middle of the route
-      const centerKm = totalDistance / 2;
-      await this.zoomToDistance(centerKm, totalDistance);
+      // Zoom centered on the first brunnel
+      const firstCenter = (brunnels[0].startDistance + brunnels[0].endDistance) / 2;
+      await this.zoomToDistance(firstCenter, totalDistance);
 
-      // Apply each brunnel (selection works even for off-screen positions)
+      // Apply each brunnel, panning to each one
       for (const brunnel of brunnels) {
         await this.applyBrunnel(brunnel, totalDistance);
       }
