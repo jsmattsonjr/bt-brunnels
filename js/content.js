@@ -782,7 +782,7 @@ out geom qt;`;
       chart.dispatchEvent(new MouseEvent('mousemove', {
         bubbles: true, clientX: centerX, clientY: centerY, view: window
       }));
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
     },
 
     // Zoom the chart to a good precision level
@@ -837,7 +837,7 @@ out geom qt;`;
         });
         chart.dispatchEvent(wheelEvent);
 
-        await new Promise(r => setTimeout(r, 2));
+        await new Promise(r => setTimeout(r, 1));
         iterations++;
       }
 
@@ -875,7 +875,7 @@ out geom qt;`;
           deltaMode: 0
         });
         chart.dispatchEvent(wheelEvent);
-        await new Promise(r => setTimeout(r, 2));
+        await new Promise(r => setTimeout(r, 1));
         iterations++;
       }
 
@@ -913,7 +913,7 @@ out geom qt;`;
         button: 0, buttons: 0, shiftKey: false
       }));
 
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
       console.log('Selection cleared, chart class:', chart.className);
     },
 
@@ -984,13 +984,13 @@ out geom qt;`;
       chart.dispatchEvent(new MouseEvent('mousemove', {
         bubbles: true, clientX: startPx, clientY: centerY, view: window, shiftKey: false
       }));
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
 
       // Now press Shift - this should enable selection mode at current cursor position
       window.dispatchEvent(new KeyboardEvent('keydown', {
         bubbles: true, key: 'Shift', code: 'ShiftLeft', shiftKey: true, view: window
       }));
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
 
       console.log('Chart class after shift:', chart.className);
 
@@ -1000,7 +1000,7 @@ out geom qt;`;
         clientX: startPx, clientY: centerY,
         button: 0, buttons: 1, shiftKey: true
       }));
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
 
       // Drag to end position - this extends the selection
       const dragSteps = 15;
@@ -1011,7 +1011,7 @@ out geom qt;`;
           clientX: x, clientY: centerY,
           button: 0, buttons: 1, shiftKey: true
         }));
-        await new Promise(r => setTimeout(r, 2));
+        await new Promise(r => setTimeout(r, 1));
       }
 
       console.log('Chart class after drag:', chart.className);
@@ -1022,13 +1022,13 @@ out geom qt;`;
         clientX: endPx, clientY: centerY,
         button: 0, buttons: 0, shiftKey: true
       }));
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
 
       // Keep shift held for a moment, then release
       window.dispatchEvent(new KeyboardEvent('keyup', {
         bubbles: true, key: 'Shift', code: 'ShiftLeft', shiftKey: false, view: window
       }));
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
 
       console.log('Chart class after selection:', chart.className);
 
@@ -1081,13 +1081,13 @@ out geom qt;`;
       });
 
       clickTarget.dispatchEvent(mouseDown);
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
       clickTarget.dispatchEvent(mouseUp);
-      await new Promise(r => setTimeout(r, 2));
+      await new Promise(r => setTimeout(r, 1));
       clickTarget.dispatchEvent(click);
 
       // Wait for UI to update
-      await new Promise(resolve => setTimeout(resolve, 2));
+      await new Promise(resolve => setTimeout(resolve, 1));
       console.log(`${type} button click sequence complete`);
     },
 
