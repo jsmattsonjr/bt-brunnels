@@ -11,7 +11,6 @@
   // turf-csp.js is loaded before this file and exports to global turf
   function loadTurf() {
     if (typeof turf !== 'undefined') {
-      console.log('Turf.js available');
       return Promise.resolve();
     }
     throw new Error('Turf.js not loaded. Check manifest.json content_scripts order.');
@@ -138,8 +137,6 @@
       const dist2 = p2.distance; // meters
       const interpolatedDistance = dist1 + t * (dist2 - dist1);
 
-      console.log(`  Turf location: ${turfLocationKm.toFixed(3)}km -> segment ${segmentIndex}, t=${t.toFixed(4)}`);
-      console.log(`  Biketerra: ${(dist1/1000).toFixed(3)}km - ${(dist2/1000).toFixed(3)}km -> ${(interpolatedDistance/1000).toFixed(3)}km`);
 
       // Return in km
       return interpolatedDistance / 1000;
@@ -534,7 +531,6 @@ out geom qt;`;
         throw new Error('Could not extract route ID from URL');
       }
 
-      console.log(`Fetching route data for ID: ${routeId}`);
 
       // Fetch the __data.json endpoint
       const dataUrl = `https://biketerra.com/routes/new/__data.json?id=${routeId}`;
@@ -585,21 +581,18 @@ out geom qt;`;
         if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
           if ('editableRoute' in item) {
             editableRouteIndex = item.editableRoute;
-            console.log(`Found editableRoute index: ${editableRouteIndex}`);
             break;
           }
         }
       }
 
       if (editableRouteIndex === null) {
-        console.log('editableRoute key not found, falling back to simple_route');
         return this.findSimpleRouteInArray(dataArray);
       }
 
       // Get the editableRoute array (list of indices to point objects)
       const editableRouteIndices = dataArray[editableRouteIndex];
       if (!Array.isArray(editableRouteIndices)) {
-        console.log('editableRoute is not an array, falling back to simple_route');
         return this.findSimpleRouteInArray(dataArray);
       }
 
@@ -618,7 +611,6 @@ out geom qt;`;
       }
 
       if (points.length > 0) {
-        console.log(`Found editableRoute with ${points.length} points`);
         return points;
       }
 
@@ -635,7 +627,6 @@ out geom qt;`;
             if (Array.isArray(parsed) && parsed.length > 0 &&
                 Array.isArray(parsed[0]) && parsed[0].length === 4 &&
                 typeof parsed[0][0] === 'number') {
-              console.log(`Found simple_route with ${parsed.length} points`);
               return parsed;
             }
           } catch (e) {
@@ -794,11 +785,9 @@ out geom qt;`;
       await this.triggerChartUpdate();
 
       let visibleRange = this.getChartVisibleRange();
-      console.log('Current visible range:', visibleRange);
 
       // If we're not at full zoom, reset first
       if (visibleRange && visibleRange.rangeKm < totalDistanceKm * 0.9) {
-        console.log('Resetting zoom to full view...');
         await this.resetChartZoom(totalDistanceKm);
         await this.triggerChartUpdate();
         visibleRange = this.getChartVisibleRange();
@@ -807,7 +796,6 @@ out geom qt;`;
       // Target: 500m visible range for good precision
       const targetRangeKm = 0.5;
 
-      console.log(`Zooming to ${targetRangeKm * 1000}m visible range...`);
 
       let iterations = 0;
       const maxIterations = 50;
@@ -823,7 +811,6 @@ out geom qt;`;
 
         // Check if we've reached target zoom
         if (currentRange.rangeKm <= targetRangeKm) {
-          console.log(`Reached target zoom: ${currentRange.rangeKm.toFixed(2)}km range after ${iterations} steps`);
           break;
         }
 
@@ -842,7 +829,6 @@ out geom qt;`;
       }
 
       await this.triggerChartUpdate();
-      console.log('Final visible range:', this.getChartVisibleRange());
     },
 
     // Reset chart to full zoom (show entire route)
@@ -880,16 +866,12 @@ out geom qt;`;
       }
 
       await this.triggerChartUpdate();
-      console.log('Chart zoom reset');
     },
 
     // Clear any existing selection
     async clearSelection() {
       const chart = this.getElevationChart();
       if (!chart) return;
-
-      // Remove our debug rectangles
-      document.querySelectorAll('.bt-selection-rect').forEach(el => el.remove());
 
       // Click somewhere on the chart without shift to deselect
       const rect = chart.getBoundingClientRect();
@@ -914,7 +896,6 @@ out geom qt;`;
       }));
 
       await new Promise(r => setTimeout(r, 1));
-      console.log('Selection cleared, chart class:', chart.className);
     },
 
     // Simulate selection on elevation chart with precise positioning
@@ -944,12 +925,9 @@ out geom qt;`;
         const startPx = rect.left + (startX * rect.width);
         const endPx = rect.left + (endX * rect.width);
         const centerY = rect.top + (rect.height / 2);
-        console.log(`Fallback selection: ${startPx.toFixed(1)}px to ${endPx.toFixed(1)}px`);
         return this._performSelection(chart, rect, startPx, endPx, centerY);
       }
 
-      console.log(`Visible range: ${visibleRange.startKm.toFixed(3)}km - ${visibleRange.endKm.toFixed(3)}km (${visibleRange.rangeKm.toFixed(3)}km, precise: ${visibleRange.precise})`);
-      console.log(`Selection target: ${startKm.toFixed(3)}km - ${endKm.toFixed(3)}km (${((endKm - startKm) * 1000).toFixed(0)}m)`);
 
       // Calculate pixel positions based on visible range
       // Use percentPerKm if available for higher precision
@@ -960,7 +938,6 @@ out geom qt;`;
         const endPercent = (endKm - visibleRange.startKm) * visibleRange.percentPerKm;
         startPx = rect.left + (startPercent / 100) * rect.width;
         endPx = rect.left + (endPercent / 100) * rect.width;
-        console.log(`Using precise percentPerKm: ${visibleRange.percentPerKm.toFixed(2)}%/km`);
       } else {
         // Standard precision: use start/end range
         const startRelative = (startKm - visibleRange.startKm) / visibleRange.rangeKm;
@@ -973,8 +950,6 @@ out geom qt;`;
       const pixelWidth = endPx - startPx;
       const metersPerPixel = (visibleRange.rangeKm * 1000) / rect.width;
 
-      console.log(`Pixel positions: start=${startPx.toFixed(1)}px, end=${endPx.toFixed(1)}px`);
-      console.log(`Selection width: ${pixelWidth.toFixed(1)}px (${metersPerPixel.toFixed(2)}m/px)`);
 
       // IMPORTANT: First move mouse to start position WITHOUT shift
       // This ensures Svelte's internal cursor position is at our start
@@ -992,7 +967,6 @@ out geom qt;`;
       }));
       await new Promise(r => setTimeout(r, 1));
 
-      console.log('Chart class after shift:', chart.className);
 
       // Mouse down at start (this anchors the selection start)
       chart.dispatchEvent(new MouseEvent('mousedown', {
@@ -1014,7 +988,6 @@ out geom qt;`;
         await new Promise(r => setTimeout(r, 1));
       }
 
-      console.log('Chart class after drag:', chart.className);
 
       // Mouse up at end position - this finalizes the selection
       chart.dispatchEvent(new MouseEvent('mouseup', {
@@ -1030,11 +1003,9 @@ out geom qt;`;
       }));
       await new Promise(r => setTimeout(r, 1));
 
-      console.log('Chart class after selection:', chart.className);
 
       // Log button states
       const bridgeBtn = this.getBridgeButton();
-      console.log('Bridge button:', bridgeBtn?.className);
     },
 
     // Click the bridge or tunnel button
@@ -1045,15 +1016,11 @@ out geom qt;`;
         throw new Error(`${type} button not found`);
       }
 
-      console.log(`Clicking ${type} button:`, button);
-      console.log(`Button HTML:`, button.outerHTML.slice(0, 200));
 
       // Find all clickable elements within the button
       const img = button.querySelector('img');
       const icon = button.querySelector('.toolbar-item-icon');
 
-      console.log(`Found img:`, img);
-      console.log(`Found icon:`, icon);
 
       // Try dispatching a proper mouse click event instead of .click()
       const clickTarget = img || icon || button;
@@ -1061,7 +1028,6 @@ out geom qt;`;
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      console.log(`Click target:`, clickTarget.tagName, `at (${centerX.toFixed(0)}, ${centerY.toFixed(0)})`);
 
       // Dispatch mousedown, mouseup, click sequence
       const mouseDown = new MouseEvent('mousedown', {
@@ -1088,7 +1054,6 @@ out geom qt;`;
 
       // Wait for UI to update
       await new Promise(resolve => setTimeout(resolve, 1));
-      console.log(`${type} button click sequence complete`);
     },
 
     // Apply a single brunnel (assumes chart is already zoomed)
@@ -1098,8 +1063,6 @@ out geom qt;`;
       const endKm = brunnel.endDistance;
       const spanMeters = (endKm - startKm) * 1000;
 
-      console.log(`=== Applying ${brunnel.type}: ${brunnel.name} ===`);
-      console.log(`  Location: ${startKm.toFixed(3)}km - ${endKm.toFixed(3)}km (${spanMeters.toFixed(0)}m span)`);
 
       // Make the selection using actual km values (works even if off-screen)
       await this.simulateSelection(startKm, endKm, totalDistance, visibleRange);
@@ -1112,7 +1075,6 @@ out geom qt;`;
     async applyAllBrunnels(brunnels, totalDistance) {
       if (brunnels.length === 0) return;
 
-      console.log(`Applying ${brunnels.length} brunnels with precision zoom`);
 
       // Zoom to a good precision level (500m visible range)
       await this.zoomToPrecision(totalDistance);
@@ -1120,14 +1082,12 @@ out geom qt;`;
       // Get visible range once after zooming (reuse for all brunnels)
       await this.triggerChartUpdate();
       const visibleRange = this.getChartVisibleRange();
-      console.log('Cached visible range for batch:', visibleRange);
 
       // Apply each brunnel (selection works even when off-screen)
       for (const brunnel of brunnels) {
         await this.applyBrunnel(brunnel, totalDistance, visibleRange);
       }
 
-      console.log('All brunnels applied');
     }
   };
 
@@ -1144,16 +1104,13 @@ out geom qt;`;
     // Fetch route data from Biketerra API
     const simpleRoute = await BiketerraIntegration.fetchRouteData();
     const route = BiketerraIntegration.parseRouteData(simpleRoute);
-    console.log(`Route extracted: ${route.totalDistance.toFixed(2)} km, ${route.coordinates.length} points`);
 
     // Calculate bounds and query Overpass
     const bounds = GeometryUtils.calculateBounds(route.coordinates);
     const expandedBounds = GeometryUtils.expandBounds(bounds, queryBuffer);
 
     chrome.runtime.sendMessage({ action: 'progress', text: 'Querying OpenStreetMap...' });
-    console.log('Querying Overpass API...');
     const overpassData = await OverpassAPI.queryBrunnels(expandedBounds);
-    console.log(`Found ${overpassData.bridges.length} bridges, ${overpassData.tunnels.length} tunnels from Overpass`);
 
     // Create Brunnel instances
     const brunnels = Brunnel.fromOverpassData(overpassData);
@@ -1177,7 +1134,6 @@ out geom qt;`;
     // Get included brunnels
     const includedBrunnels = brunnels.filter(b => b.isIncluded() && b.routeSpan);
 
-    console.log(`Final result: ${includedBrunnels.length} brunnels`);
 
     // Return simplified data for popup
     return {
@@ -1260,5 +1216,4 @@ out geom qt;`;
     }
   });
 
-  console.log('Biketerra Brunnels extension loaded');
 })();
