@@ -501,6 +501,70 @@ out geom qt;`;
 
     routeSpansOverlap(span1, span2) {
       return !(span1.endDistance <= span2.startDistance || span2.endDistance <= span1.startDistance);
+    },
+
+    // Merge adjacent brunnels of the same type (within 1m of each other)
+    // OSM often divides bridges/tunnels into multiple components
+    mergeAdjacentBrunnels(brunnels) {
+      // Separate by type - only merge same types (never merge bridge with tunnel)
+      const bridges = brunnels.filter(b => b.type === 'bridge');
+      const tunnels = brunnels.filter(b => b.type === 'tunnel');
+
+      const mergedBridges = this._mergeByType(bridges);
+      const mergedTunnels = this._mergeByType(tunnels);
+
+      return [...mergedBridges, ...mergedTunnels];
+    },
+
+    _mergeByType(brunnels) {
+      if (brunnels.length === 0) return [];
+
+      // Sort by start distance on route
+      const sorted = [...brunnels].sort((a, b) =>
+        (a.routeSpan?.startDistance || 0) - (b.routeSpan?.startDistance || 0)
+      );
+
+      const merged = [];
+      let currentGroup = [sorted[0]];
+
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = currentGroup[currentGroup.length - 1];
+        const curr = sorted[i];
+
+        // Check if within 1m (0.001 km) of each other
+        const gap = curr.routeSpan.startDistance - prev.routeSpan.endDistance;
+        if (gap <= 0.001) {
+          currentGroup.push(curr);
+        } else {
+          merged.push(this._createMergedBrunnel(currentGroup));
+          currentGroup = [curr];
+        }
+      }
+
+      // Don't forget the last group
+      merged.push(this._createMergedBrunnel(currentGroup));
+
+      return merged;
+    },
+
+    _createMergedBrunnel(group) {
+      if (group.length === 1) return group[0];
+
+      // Merge route span (min start to max end)
+      const startDistance = Math.min(...group.map(b => b.routeSpan.startDistance));
+      const endDistance = Math.max(...group.map(b => b.routeSpan.endDistance));
+
+      // Merge names: if all match, use once; if different, join with semicolons
+      const names = group.map(b => b.name);
+      const uniqueNames = [...new Set(names)];
+      const mergedName = uniqueNames.length === 1 ? uniqueNames[0] : uniqueNames.join('; ');
+
+      // Use first brunnel as representative, update its span and name
+      const representative = group[0];
+      representative.routeSpan = { startDistance, endDistance };
+      representative.name = mergedName;
+
+      return representative;
     }
   };
 
@@ -1134,10 +1198,13 @@ out geom qt;`;
     // Get included brunnels
     const includedBrunnels = brunnels.filter(b => b.isIncluded() && b.routeSpan);
 
+    // Merge adjacent brunnels of the same type (within 1m)
+    // OSM often divides bridges/tunnels into multiple components
+    const mergedBrunnels = BrunnelAnalysis.mergeAdjacentBrunnels(includedBrunnels);
 
     // Return simplified data for popup
     return {
-      brunnels: includedBrunnels.map(b => ({
+      brunnels: mergedBrunnels.map(b => ({
         id: b.id,
         type: b.type,
         name: b.name,
