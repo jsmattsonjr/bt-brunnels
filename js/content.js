@@ -837,7 +837,7 @@ out geom qt;`;
       chart.dispatchEvent(new MouseEvent('mousemove', {
         bubbles: true, clientX: centerX, clientY: centerY, view: window
       }));
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
     },
 
     // Zoom the chart to a good precision level
@@ -888,7 +888,7 @@ out geom qt;`;
         });
         chart.dispatchEvent(wheelEvent);
 
-        await new Promise(r => setTimeout(r, 1));
+        await new Promise(r => requestAnimationFrame(r));
         iterations++;
       }
 
@@ -925,7 +925,7 @@ out geom qt;`;
           deltaMode: 0
         });
         chart.dispatchEvent(wheelEvent);
-        await new Promise(r => setTimeout(r, 1));
+        await new Promise(r => requestAnimationFrame(r));
         iterations++;
       }
 
@@ -959,7 +959,7 @@ out geom qt;`;
         button: 0, buttons: 0, shiftKey: false
       }));
 
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
     },
 
     // Simulate selection on elevation chart with precise positioning
@@ -1023,13 +1023,13 @@ out geom qt;`;
       chart.dispatchEvent(new MouseEvent('mousemove', {
         bubbles: true, clientX: startPx, clientY: centerY, view: window, shiftKey: false
       }));
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
 
       // Now press Shift - this should enable selection mode at current cursor position
       window.dispatchEvent(new KeyboardEvent('keydown', {
         bubbles: true, key: 'Shift', code: 'ShiftLeft', shiftKey: true, view: window
       }));
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
 
 
       // Mouse down at start (this anchors the selection start)
@@ -1038,7 +1038,7 @@ out geom qt;`;
         clientX: startPx, clientY: centerY,
         button: 0, buttons: 1, shiftKey: true
       }));
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
 
       // Drag to end position - this extends the selection
       const dragSteps = 15;
@@ -1049,7 +1049,7 @@ out geom qt;`;
           clientX: x, clientY: centerY,
           button: 0, buttons: 1, shiftKey: true
         }));
-        await new Promise(r => setTimeout(r, 1));
+        await new Promise(r => requestAnimationFrame(r));
       }
 
 
@@ -1059,13 +1059,13 @@ out geom qt;`;
         clientX: endPx, clientY: centerY,
         button: 0, buttons: 0, shiftKey: true
       }));
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
 
       // Keep shift held for a moment, then release
       window.dispatchEvent(new KeyboardEvent('keyup', {
         bubbles: true, key: 'Shift', code: 'ShiftLeft', shiftKey: false, view: window
       }));
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
 
 
       // Log button states
@@ -1111,9 +1111,9 @@ out geom qt;`;
       });
 
       clickTarget.dispatchEvent(mouseDown);
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
       clickTarget.dispatchEvent(mouseUp);
-      await new Promise(r => setTimeout(r, 1));
+      await new Promise(r => requestAnimationFrame(r));
       clickTarget.dispatchEvent(click);
 
       // Wait for UI to update
