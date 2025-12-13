@@ -209,16 +209,16 @@
       padding: 0.6rem 0.75rem;
       margin-bottom: 0.4rem;
       border-radius: 0.5rem;
-      background: var(--bt-lowlight);
+      background: linear-gradient(135deg, var(--bt-a), var(--bt-b));
       cursor: pointer;
-      transition: background 0.15s ease;
+      transition: background 0.15s ease, opacity 0.15s ease;
       display: flex;
       align-items: center;
       gap: 0.6rem;
     }
 
     .brunnel-item:hover {
-      background: var(--bt-darker);
+      background: linear-gradient(135deg, var(--bt-9), var(--bt-a));
     }
 
     .brunnel-item:last-child {
@@ -247,12 +247,22 @@
     }
 
     .brunnel-item.applied {
-      opacity: 0.6;
+      background: var(--bt-darker);
+      cursor: default;
     }
 
-    .brunnel-item.applied::after {
-      content: ' ✓';
-      color: var(--bt-6);
+    .brunnel-item.applied:hover {
+      background: var(--bt-darker);
+    }
+
+    .brunnel-item.applied .brunnel-name,
+    .brunnel-item.applied .brunnel-span {
+      color: var(--bt-mid);
+    }
+
+    .brunnel-item.applied .brunnel-icon path {
+      fill: var(--bt-mid);
+      stroke: var(--bt-mid);
     }
 
     .brunnel-name {

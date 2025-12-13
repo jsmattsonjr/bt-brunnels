@@ -9,6 +9,8 @@ const TUNNEL_ICON = `<svg class="brunnel-icon" viewBox="0 0 118 87" fill="none" 
 </svg>`;
 
 let locatedBrunnels = [];
+let appliedBrunnelIds = new Set();
+let totalDistance = 0;
 
 document.addEventListener('DOMContentLoaded', () => {
   const locateBtn = document.getElementById('locateBtn');
@@ -72,12 +74,13 @@ async function locateBrunnels() {
     }
 
     locatedBrunnels = response.brunnels;
-    displayResults(locatedBrunnels, response.totalDistance);
+    totalDistance = response.totalDistance;
+    appliedBrunnelIds = new Set();
+    displayResults(locatedBrunnels, totalDistance);
 
-    statusDiv.textContent = `Found ${locatedBrunnels.length} brunnel(s)`;
+    statusDiv.textContent = `Found ${locatedBrunnels.length} brunnel(s). Click to apply individually.`;
     statusDiv.className = 'status success';
     document.getElementById('applyBtn').disabled = locatedBrunnels.length === 0;
-    // Keep detect button disabled after successful detection
     progressDiv.style.display = 'none';
   } catch (error) {
     statusDiv.textContent = `Error: ${error.message}`;
@@ -87,7 +90,7 @@ async function locateBrunnels() {
   }
 }
 
-function displayResults(brunnels, totalDistance) {
+function displayResults(brunnels, distance) {
   const resultsDiv = document.getElementById('results');
   resultsDiv.innerHTML = '';
 
@@ -117,30 +120,51 @@ function displayResults(brunnels, totalDistance) {
       </div>
     `;
 
-    item.addEventListener('click', () => highlightBrunnel(brunnel, totalDistance));
+    item.addEventListener('click', () => applySingleBrunnel(brunnel, item));
     resultsDiv.appendChild(item);
   }
 }
 
-async function highlightBrunnel(brunnel, totalDistance) {
+async function applySingleBrunnel(brunnel, item) {
+  // Skip if already applied
+  if (appliedBrunnelIds.has(brunnel.id)) return;
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const statusDiv = document.getElementById('status');
+  const applyBtn = document.getElementById('applyBtn');
 
-  const response = await chrome.tabs.sendMessage(tab.id, {
-    action: 'highlightBrunnel',
-    brunnel,
-    totalDistance
-  });
+  statusDiv.textContent = `Applying ${brunnel.name}...`;
+  statusDiv.className = 'status';
 
-  if (response.error) {
-    statusDiv.textContent = `Preview: ${response.error}`;
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      action: 'applyBrunnel',
+      brunnel
+    });
+
+    if (response.error) {
+      statusDiv.textContent = `Error: ${response.error}`;
+      statusDiv.className = 'status error';
+      return;
+    }
+
+    // Mark as applied
+    appliedBrunnelIds.add(brunnel.id);
+    item.classList.add('applied');
+
+    // Update status
+    const remaining = locatedBrunnels.length - appliedBrunnelIds.size;
+    if (remaining === 0) {
+      statusDiv.textContent = `All ${locatedBrunnels.length} brunnel(s) applied!`;
+      statusDiv.className = 'status success';
+      applyBtn.disabled = true;
+    } else {
+      statusDiv.textContent = `Applied ${brunnel.name}. ${remaining} remaining.`;
+      statusDiv.className = 'status success';
+    }
+  } catch (error) {
+    statusDiv.textContent = `Error: ${error.message}`;
     statusDiv.className = 'status error';
-  } else {
-    const targetStr = response.targetKm.toFixed(3);
-    const actualStr = response.actualKm !== null ? response.actualKm.toFixed(3) : 'N/A';
-    const errorStr = response.errorKm !== null ? (response.errorKm * 1000).toFixed(0) + 'm' : 'N/A';
-    statusDiv.textContent = `Preview: target=${targetStr}km, actual=${actualStr}km, error=${errorStr}`;
-    statusDiv.className = response.errorKm !== null && response.errorKm < 0.05 ? 'status success' : 'status';
   }
 }
 
@@ -149,21 +173,27 @@ async function applyAllBrunnels() {
   const progressDiv = document.getElementById('progress');
   const applyBtn = document.getElementById('applyBtn');
 
-  if (locatedBrunnels.length === 0) return;
+  // Filter to only non-applied brunnels
+  const remaining = locatedBrunnels.filter(b => !appliedBrunnelIds.has(b.id));
+
+  if (remaining.length === 0) {
+    applyBtn.disabled = true;
+    return;
+  }
 
   statusDiv.textContent = 'Applying brunnels...';
   statusDiv.className = 'status';
   progressDiv.style.display = 'block';
-  progressDiv.textContent = `Applying ${locatedBrunnels.length} brunnels with precision zoom...`;
+  progressDiv.textContent = `Applying ${remaining.length} brunnels with precision zoom...`;
   applyBtn.disabled = true;
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     // Sort by start distance
-    const sorted = [...locatedBrunnels].sort((a, b) => a.startDistance - b.startDistance);
+    const sorted = [...remaining].sort((a, b) => a.startDistance - b.startDistance);
 
-    // Apply all brunnels in one operation (zoom once, apply all, zoom out)
+    // Apply all remaining brunnels in one operation
     const response = await chrome.tabs.sendMessage(tab.id, {
       action: 'applyAllBrunnels',
       brunnels: sorted
@@ -175,13 +205,13 @@ async function applyAllBrunnels() {
 
     // Mark all as applied in UI
     for (const brunnel of sorted) {
+      appliedBrunnelIds.add(brunnel.id);
       const item = document.querySelector(`.brunnel-item[data-id="${brunnel.id}"]`);
       if (item) item.classList.add('applied');
     }
 
     statusDiv.textContent = `Applied ${sorted.length} brunnel(s) successfully!`;
     statusDiv.className = 'status success';
-    // Keep apply button disabled after successful application
     progressDiv.style.display = 'none';
   } catch (error) {
     statusDiv.textContent = `Error: ${error.message}`;

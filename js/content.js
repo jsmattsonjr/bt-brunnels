@@ -1231,9 +1231,76 @@ out geom qt;`;
       (async () => {
         try {
           await loadTurf();
-          const simpleRoute = await BiketerraIntegration.fetchRouteData();
-          const route = BiketerraIntegration.parseRouteData(simpleRoute);
-          await BiketerraIntegration.applyBrunnel(message.brunnel, route.totalDistance);
+
+          const chart = BiketerraIntegration.getElevationChart();
+          if (!chart) {
+            sendResponse({ error: 'Elevation chart not found' });
+            return;
+          }
+
+          const brunnel = message.brunnel;
+
+          // Calculate midpoint for centering zoom
+          const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
+
+          // Get the visible range and zoom if needed
+          await BiketerraIntegration.triggerChartUpdate();
+          let visibleRange = BiketerraIntegration.getChartVisibleRange();
+
+          if (!visibleRange) {
+            sendResponse({ error: 'Could not determine chart visible range' });
+            return;
+          }
+
+          // Zoom in if visible range is > 1km (target: 0.5-1km)
+          const maxRangeKm = 1.0;
+          let iterations = 0;
+          const maxIterations = 50;
+
+          while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
+            const rect = chart.getBoundingClientRect();
+
+            // Calculate pixel position for brunnel midpoint to zoom centered on it
+            let zoomCenterPx;
+            if (visibleRange.percentPerKm) {
+              const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
+              zoomCenterPx = rect.left + (percent / 100) * rect.width;
+            } else {
+              const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
+              zoomCenterPx = rect.left + relative * rect.width;
+            }
+            zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
+            const centerY = rect.top + rect.height / 2;
+
+            chart.dispatchEvent(new WheelEvent('wheel', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: zoomCenterPx,
+              clientY: centerY,
+              deltaY: -120,
+              deltaMode: 0
+            }));
+
+            await new Promise(r => requestAnimationFrame(r));
+            await BiketerraIntegration.triggerChartUpdate();
+            visibleRange = BiketerraIntegration.getChartVisibleRange();
+            if (!visibleRange) break;
+            iterations++;
+          }
+
+          if (!visibleRange) {
+            sendResponse({ error: 'Lost chart range during zoom' });
+            return;
+          }
+
+          // Apply the brunnel (selection + button click)
+          await BiketerraIntegration.simulateSelection(
+            brunnel.startDistance,
+            brunnel.endDistance,
+            null, // totalDistance not needed with visibleRange
+            visibleRange
+          );
+          await BiketerraIntegration.clickBrunnelButton(brunnel.type);
+
           sendResponse({ success: true });
         } catch (error) {
           sendResponse({ error: error.message });
@@ -1257,133 +1324,6 @@ out geom qt;`;
       return true;
     }
 
-    if (message.action === 'highlightBrunnel') {
-      (async () => {
-        try {
-          const chart = BiketerraIntegration.getElevationChart();
-          if (!chart) {
-            sendResponse({ error: 'Elevation chart not found' });
-            return;
-          }
-
-          const brunnel = message.brunnel;
-          const totalDistance = message.totalDistance;
-
-          // Calculate midpoint of brunnel in km
-          const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
-
-          // Get the visible range of the chart
-          await BiketerraIntegration.triggerChartUpdate();
-          let visibleRange = BiketerraIntegration.getChartVisibleRange();
-
-          if (!visibleRange) {
-            sendResponse({ error: 'Could not determine chart visible range' });
-            return;
-          }
-
-          // Zoom in if visible range is > 1km (target: 0.5-1km)
-          const minRangeKm = 0.5;
-          const maxRangeKm = 1.0;
-          let iterations = 0;
-          const maxIterations = 50;
-
-          while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
-            const rect = chart.getBoundingClientRect();
-
-            // Calculate pixel position for brunnel midpoint to zoom centered on it
-            let zoomCenterPx;
-            if (visibleRange.percentPerKm) {
-              const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
-              zoomCenterPx = rect.left + (percent / 100) * rect.width;
-            } else {
-              const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
-              zoomCenterPx = rect.left + relative * rect.width;
-            }
-            // Clamp to chart bounds
-            zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
-            const centerY = rect.top + rect.height / 2;
-
-            // Dispatch wheel event to zoom in
-            chart.dispatchEvent(new WheelEvent('wheel', {
-              bubbles: true, cancelable: true, view: window,
-              clientX: zoomCenterPx,
-              clientY: centerY,
-              deltaY: -120,
-              deltaMode: 0
-            }));
-
-            await new Promise(r => requestAnimationFrame(r));
-            await BiketerraIntegration.triggerChartUpdate();
-            visibleRange = BiketerraIntegration.getChartVisibleRange();
-            if (!visibleRange) break;
-            iterations++;
-          }
-
-          if (!visibleRange) {
-            sendResponse({ error: 'Lost chart range during zoom' });
-            return;
-          }
-
-          // Check if brunnel is within visible range after zooming
-          if (midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) {
-            sendResponse({
-              error: `Brunnel at ${midpointKm.toFixed(2)}km is outside visible range (${visibleRange.startKm.toFixed(2)}-${visibleRange.endKm.toFixed(2)}km)`
-            });
-            return;
-          }
-
-          // Calculate pixel position for the midpoint
-          const rect = chart.getBoundingClientRect();
-          let targetPx;
-          if (visibleRange.percentPerKm) {
-            const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
-            targetPx = rect.left + (percent / 100) * rect.width;
-          } else {
-            const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
-            targetPx = rect.left + relative * rect.width;
-          }
-          const centerY = rect.top + rect.height / 2;
-
-          // Dispatch mouseenter
-          chart.dispatchEvent(new MouseEvent('mouseenter', {
-            bubbles: true, clientX: targetPx, clientY: centerY, view: window
-          }));
-          await new Promise(r => requestAnimationFrame(r));
-
-          // Dispatch mousemove to target position
-          chart.dispatchEvent(new MouseEvent('mousemove', {
-            bubbles: true, clientX: targetPx, clientY: centerY, view: window
-          }));
-          await new Promise(r => requestAnimationFrame(r));
-
-          // Read DIST from elev-stats-current to verify position
-          const statsElement = document.querySelector('.elev-stats-current');
-          let actualDistKm = null;
-          if (statsElement) {
-            const distMatch = statsElement.textContent.match(/DIST[:\s]*([0-9.]+)\s*km/i);
-            if (distMatch) {
-              actualDistKm = parseFloat(distMatch[1]);
-            }
-          }
-
-          const error = actualDistKm !== null ? Math.abs(actualDistKm - midpointKm) : null;
-
-          sendResponse({
-            success: true,
-            targetKm: midpointKm,
-            actualKm: actualDistKm,
-            errorKm: error,
-            visibleRange: {
-              startKm: visibleRange.startKm,
-              endKm: visibleRange.endKm
-            }
-          });
-        } catch (error) {
-          sendResponse({ error: error.message });
-        }
-      })();
-      return true;
-    }
   });
 
 })();
