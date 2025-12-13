@@ -1156,10 +1156,10 @@ out geom qt;`;
   };
 
   // ============================================================================
-  // Main Detection Pipeline
+  // Main Location Pipeline
   // ============================================================================
 
-  async function detectBrunnels(options = {}) {
+  async function locateBrunnels(options = {}) {
     const { queryBuffer = 10, routeBuffer = 3, bearingTolerance = 20 } = options;
 
     // Load Turf.js
@@ -1220,8 +1220,8 @@ out geom qt;`;
   // ============================================================================
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'detectBrunnels') {
-      detectBrunnels(message.options)
+    if (message.action === 'locateBrunnels') {
+      locateBrunnels(message.options)
         .then(result => sendResponse(result))
         .catch(error => sendResponse({ error: error.message }));
       return true; // Async response
