@@ -4,8 +4,8 @@ const BRIDGE_ICON = `<svg class="brunnel-icon" viewBox="0 0 147 71" fill="none" 
 <path d="M74.5 5C39 5 35.5 24.5 5 24.5V66H19H33C36 41 46 24.5 74.5 24.5C101.5 24.5 111 40 116 66H142V24.5C111 24.5 108 5 74.5 5Z" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const TUNNEL_ICON = `<svg class="brunnel-icon" viewBox="0 0 116 89" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M23.5 69.001V39.501C23.5 19.0011 40.7 5.90105 57.5 5.50105C74.3 5.10105 92 19.5 92 39.501V69.001M6 83L42.5 54.2961L57.5 42.5L72.7913 54.2961L110 83" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+const TUNNEL_ICON = `<svg class="brunnel-icon" viewBox="0 0 118 87" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M58.5 5.21033H5V81.7103H35C30.5 73.5 26.5 66 26.5 53.2103C26.5 34 42.5 20 60 20C77.5 20 92.5 33.5 92.5 53.2103C92.5 66 89.5 74.5 83 81.7103H112.5V5.21033H58.5Z" stroke-width="10" stroke-linejoin="round"/>
 </svg>`;
 
 let detectedBrunnels = [];
