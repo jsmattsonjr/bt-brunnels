@@ -1269,19 +1269,62 @@ out geom qt;`;
           const brunnel = message.brunnel;
           const totalDistance = message.totalDistance;
 
+          // Calculate midpoint of brunnel in km
+          const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
+
           // Get the visible range of the chart
           await BiketerraIntegration.triggerChartUpdate();
-          const visibleRange = BiketerraIntegration.getChartVisibleRange();
+          let visibleRange = BiketerraIntegration.getChartVisibleRange();
 
           if (!visibleRange) {
             sendResponse({ error: 'Could not determine chart visible range' });
             return;
           }
 
-          // Calculate midpoint of brunnel in km
-          const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
+          // Zoom in if visible range is > 1km (target: 0.5-1km)
+          const minRangeKm = 0.5;
+          const maxRangeKm = 1.0;
+          let iterations = 0;
+          const maxIterations = 50;
 
-          // Check if brunnel is within visible range
+          while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
+            const rect = chart.getBoundingClientRect();
+
+            // Calculate pixel position for brunnel midpoint to zoom centered on it
+            let zoomCenterPx;
+            if (visibleRange.percentPerKm) {
+              const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
+              zoomCenterPx = rect.left + (percent / 100) * rect.width;
+            } else {
+              const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
+              zoomCenterPx = rect.left + relative * rect.width;
+            }
+            // Clamp to chart bounds
+            zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
+            const centerY = rect.top + rect.height / 2;
+
+            // Dispatch wheel event to zoom in
+            chart.dispatchEvent(new WheelEvent('wheel', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: zoomCenterPx,
+              clientY: centerY,
+              deltaY: -120,
+              deltaMode: 0
+            }));
+
+            await new Promise(r => requestAnimationFrame(r));
+            await BiketerraIntegration.triggerChartUpdate();
+            visibleRange = BiketerraIntegration.getChartVisibleRange();
+            if (!visibleRange) break;
+            iterations++;
+          }
+
+          if (!visibleRange) {
+            sendResponse({ error: 'Lost chart range during zoom' });
+            return;
+          }
+
+          // Check if brunnel is within visible range after zooming
           if (midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) {
             sendResponse({
               error: `Brunnel at ${midpointKm.toFixed(2)}km is outside visible range (${visibleRange.startKm.toFixed(2)}-${visibleRange.endKm.toFixed(2)}km)`
