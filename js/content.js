@@ -919,18 +919,22 @@ out geom qt;`;
 
     // Simulate selection on elevation chart with precise positioning
     // Uses the visible range from chart scale ticks for accurate km-to-pixel conversion
-    async simulateSelection(startKm, endKm, totalDistanceKm) {
+    // If visibleRange is provided, skips the chart update (for batch operations)
+    async simulateSelection(startKm, endKm, totalDistanceKm, visibleRange = null) {
       const chart = this.getElevationChart();
       if (!chart) throw new Error('Elevation chart not found');
 
-      // Clear any existing selection first
-      await this.clearSelection();
-
-      // Trigger chart update to ensure labels reflect current zoom
-      await this.triggerChartUpdate();
+      // Clear any existing selection first (skip if we have cached visibleRange)
+      if (!visibleRange) {
+        await this.clearSelection();
+        // Trigger chart update to ensure labels reflect current zoom
+        await this.triggerChartUpdate();
+      }
 
       const rect = chart.getBoundingClientRect();
-      const visibleRange = this.getChartVisibleRange();
+      if (!visibleRange) {
+        visibleRange = this.getChartVisibleRange();
+      }
 
       if (!visibleRange) {
         console.warn('Could not get visible range, falling back to full route');
@@ -1088,7 +1092,8 @@ out geom qt;`;
     },
 
     // Apply a single brunnel (assumes chart is already zoomed)
-    async applyBrunnel(brunnel, totalDistance) {
+    // If visibleRange is provided, skips chart updates (for batch operations)
+    async applyBrunnel(brunnel, totalDistance, visibleRange = null) {
       const startKm = brunnel.startDistance;
       const endKm = brunnel.endDistance;
       const spanMeters = (endKm - startKm) * 1000;
@@ -1097,7 +1102,7 @@ out geom qt;`;
       console.log(`  Location: ${startKm.toFixed(3)}km - ${endKm.toFixed(3)}km (${spanMeters.toFixed(0)}m span)`);
 
       // Make the selection using actual km values (works even if off-screen)
-      await this.simulateSelection(startKm, endKm, totalDistance);
+      await this.simulateSelection(startKm, endKm, totalDistance, visibleRange);
 
       // Click the appropriate button
       await this.clickBrunnelButton(brunnel.type);
@@ -1112,9 +1117,14 @@ out geom qt;`;
       // Zoom to a good precision level (500m visible range)
       await this.zoomToPrecision(totalDistance);
 
+      // Get visible range once after zooming (reuse for all brunnels)
+      await this.triggerChartUpdate();
+      const visibleRange = this.getChartVisibleRange();
+      console.log('Cached visible range for batch:', visibleRange);
+
       // Apply each brunnel (selection works even when off-screen)
       for (const brunnel of brunnels) {
-        await this.applyBrunnel(brunnel, totalDistance);
+        await this.applyBrunnel(brunnel, totalDistance, visibleRange);
       }
 
       console.log('All brunnels applied');
