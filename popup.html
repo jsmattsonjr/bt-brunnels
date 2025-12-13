@@ -156,7 +156,8 @@
     }
 
     button.primary:disabled {
-      background: var(--bt-mid);
+      background: var(--bt-darker);
+      color: var(--bt-mid);
       cursor: not-allowed;
       transform: none;
     }
@@ -295,9 +296,8 @@
   </div>
 
   <div class="buttons">
-    <button id="detectBtn" class="primary">Detect Brunnels</button>
+    <button id="detectBtn" class="primary">Locate Brunnels</button>
     <button id="applyBtn" class="primary" disabled>Apply All to Route</button>
-    <button id="clearBtn" class="secondary">Clear Results</button>
   </div>
 
   <div id="progress" class="progress" style="display: none;"></div>

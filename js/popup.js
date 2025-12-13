@@ -13,14 +13,19 @@ let detectedBrunnels = [];
 document.addEventListener('DOMContentLoaded', () => {
   const detectBtn = document.getElementById('detectBtn');
   const applyBtn = document.getElementById('applyBtn');
-  const clearBtn = document.getElementById('clearBtn');
   const statusDiv = document.getElementById('status');
   const resultsDiv = document.getElementById('results');
   const progressDiv = document.getElementById('progress');
 
   detectBtn.addEventListener('click', detectBrunnels);
   applyBtn.addEventListener('click', applyAllBrunnels);
-  clearBtn.addEventListener('click', clearResults);
+
+  // Listen for progress updates from content script
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'progress') {
+      progressDiv.textContent = message.text;
+    }
+  });
 
   // Check if we're on a Biketerra editor page
   checkBiketerraPage();
@@ -72,10 +77,11 @@ async function detectBrunnels() {
     statusDiv.textContent = `Found ${detectedBrunnels.length} brunnel(s)`;
     statusDiv.className = 'status success';
     document.getElementById('applyBtn').disabled = detectedBrunnels.length === 0;
+    // Keep detect button disabled after successful detection
+    progressDiv.style.display = 'none';
   } catch (error) {
     statusDiv.textContent = `Error: ${error.message}`;
     statusDiv.className = 'status error';
-  } finally {
     progressDiv.style.display = 'none';
     detectBtn.disabled = false;
   }
@@ -163,19 +169,12 @@ async function applyAllBrunnels() {
 
     statusDiv.textContent = `Applied ${sorted.length} brunnel(s) successfully!`;
     statusDiv.className = 'status success';
+    // Keep apply button disabled after successful application
+    progressDiv.style.display = 'none';
   } catch (error) {
     statusDiv.textContent = `Error: ${error.message}`;
     statusDiv.className = 'status error';
-  } finally {
     progressDiv.style.display = 'none';
     applyBtn.disabled = false;
   }
-}
-
-function clearResults() {
-  detectedBrunnels = [];
-  document.getElementById('results').innerHTML = '';
-  document.getElementById('status').textContent = 'Ready. Open a route in the Biketerra editor.';
-  document.getElementById('status').className = 'status';
-  document.getElementById('applyBtn').disabled = true;
 }

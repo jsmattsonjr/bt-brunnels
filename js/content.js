@@ -1150,6 +1150,7 @@ out geom qt;`;
     const bounds = GeometryUtils.calculateBounds(route.coordinates);
     const expandedBounds = GeometryUtils.expandBounds(bounds, queryBuffer);
 
+    chrome.runtime.sendMessage({ action: 'progress', text: 'Querying OpenStreetMap...' });
     console.log('Querying Overpass API...');
     const overpassData = await OverpassAPI.queryBrunnels(expandedBounds);
     console.log(`Found ${overpassData.bridges.length} bridges, ${overpassData.tunnels.length} tunnels from Overpass`);
