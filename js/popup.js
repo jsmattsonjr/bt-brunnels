@@ -124,12 +124,24 @@ function displayResults(brunnels, totalDistance) {
 
 async function highlightBrunnel(brunnel, totalDistance) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const statusDiv = document.getElementById('status');
 
-  await chrome.tabs.sendMessage(tab.id, {
+  const response = await chrome.tabs.sendMessage(tab.id, {
     action: 'highlightBrunnel',
     brunnel,
     totalDistance
   });
+
+  if (response.error) {
+    statusDiv.textContent = `Preview: ${response.error}`;
+    statusDiv.className = 'status error';
+  } else {
+    const targetStr = response.targetKm.toFixed(3);
+    const actualStr = response.actualKm !== null ? response.actualKm.toFixed(3) : 'N/A';
+    const errorStr = response.errorKm !== null ? (response.errorKm * 1000).toFixed(0) + 'm' : 'N/A';
+    statusDiv.textContent = `Preview: target=${targetStr}km, actual=${actualStr}km, error=${errorStr}`;
+    statusDiv.className = response.errorKm !== null && response.errorKm < 0.05 ? 'status success' : 'status';
+  }
 }
 
 async function applyAllBrunnels() {

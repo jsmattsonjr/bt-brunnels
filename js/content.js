@@ -1258,27 +1258,87 @@ out geom qt;`;
     }
 
     if (message.action === 'highlightBrunnel') {
-      // Visual highlight on elevation chart (optional preview)
-      const chart = BiketerraIntegration.getElevationChart();
-      if (chart) {
-        const startX = message.brunnel.startDistance / message.totalDistance;
-        const endX = message.brunnel.endDistance / message.totalDistance;
+      (async () => {
+        try {
+          const chart = BiketerraIntegration.getElevationChart();
+          if (!chart) {
+            sendResponse({ error: 'Elevation chart not found' });
+            return;
+          }
 
-        // Remove existing highlights
-        document.querySelectorAll('.bt-elevation-highlight').forEach(el => el.remove());
+          const brunnel = message.brunnel;
+          const totalDistance = message.totalDistance;
 
-        // Add highlight
-        const highlight = document.createElement('div');
-        highlight.className = `bt-elevation-highlight ${message.brunnel.type}`;
-        highlight.style.left = `${startX * 100}%`;
-        highlight.style.width = `${(endX - startX) * 100}%`;
-        chart.style.position = 'relative';
-        chart.appendChild(highlight);
+          // Get the visible range of the chart
+          await BiketerraIntegration.triggerChartUpdate();
+          const visibleRange = BiketerraIntegration.getChartVisibleRange();
 
-        // Remove after 2 seconds
-        setTimeout(() => highlight.remove(), 2000);
-      }
-      sendResponse({ success: true });
+          if (!visibleRange) {
+            sendResponse({ error: 'Could not determine chart visible range' });
+            return;
+          }
+
+          // Calculate midpoint of brunnel in km
+          const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
+
+          // Check if brunnel is within visible range
+          if (midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) {
+            sendResponse({
+              error: `Brunnel at ${midpointKm.toFixed(2)}km is outside visible range (${visibleRange.startKm.toFixed(2)}-${visibleRange.endKm.toFixed(2)}km)`
+            });
+            return;
+          }
+
+          // Calculate pixel position for the midpoint
+          const rect = chart.getBoundingClientRect();
+          let targetPx;
+          if (visibleRange.percentPerKm) {
+            const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
+            targetPx = rect.left + (percent / 100) * rect.width;
+          } else {
+            const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
+            targetPx = rect.left + relative * rect.width;
+          }
+          const centerY = rect.top + rect.height / 2;
+
+          // Dispatch mouseenter
+          chart.dispatchEvent(new MouseEvent('mouseenter', {
+            bubbles: true, clientX: targetPx, clientY: centerY, view: window
+          }));
+          await new Promise(r => requestAnimationFrame(r));
+
+          // Dispatch mousemove to target position
+          chart.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true, clientX: targetPx, clientY: centerY, view: window
+          }));
+          await new Promise(r => requestAnimationFrame(r));
+
+          // Read DIST from elev-stats-current to verify position
+          const statsElement = document.querySelector('.elev-stats-current');
+          let actualDistKm = null;
+          if (statsElement) {
+            const distMatch = statsElement.textContent.match(/DIST[:\s]*([0-9.]+)\s*km/i);
+            if (distMatch) {
+              actualDistKm = parseFloat(distMatch[1]);
+            }
+          }
+
+          const error = actualDistKm !== null ? Math.abs(actualDistKm - midpointKm) : null;
+
+          sendResponse({
+            success: true,
+            targetKm: midpointKm,
+            actualKm: actualDistKm,
+            errorKm: error,
+            visibleRange: {
+              startKm: visibleRange.startKm,
+              endKm: visibleRange.endKm
+            }
+          });
+        } catch (error) {
+          sendResponse({ error: error.message });
+        }
+      })();
       return true;
     }
   });
