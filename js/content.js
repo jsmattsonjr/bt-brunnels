@@ -1117,8 +1117,6 @@ out geom qt;`;
         await this.applyBrunnel(brunnel, totalDistance);
       }
 
-      // Reset zoom at the end
-      await this.resetChartZoom(totalDistance);
       console.log('All brunnels applied');
     }
   };
