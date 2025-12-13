@@ -1252,11 +1252,46 @@ out geom qt;`;
             return;
           }
 
-          // Zoom in if visible range is > 1km (target: 0.5-1km)
           const maxRangeKm = 1.0;
           let iterations = 0;
           const maxIterations = 50;
 
+          // Phase 1: Zoom OUT until target is in visible range
+          while ((midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) && iterations < maxIterations) {
+            const rect = chart.getBoundingClientRect();
+            const centerY = rect.top + rect.height / 2;
+
+            // Move cursor to the side FARTHEST from the target, then zoom out
+            let zoomPx;
+            if (midpointKm < visibleRange.startKm) {
+              // Target is to the left - zoom out from RIGHT edge
+              zoomPx = rect.right - 10;
+            } else {
+              // Target is to the right - zoom out from LEFT edge
+              zoomPx = rect.left + 10;
+            }
+
+            chart.dispatchEvent(new WheelEvent('wheel', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: zoomPx,
+              clientY: centerY,
+              deltaY: 120, // Positive = zoom out
+              deltaMode: 0
+            }));
+
+            await new Promise(r => requestAnimationFrame(r));
+            await BiketerraIntegration.triggerChartUpdate();
+            visibleRange = BiketerraIntegration.getChartVisibleRange();
+            if (!visibleRange) break;
+            iterations++;
+          }
+
+          if (!visibleRange) {
+            sendResponse({ error: 'Lost chart range during zoom out' });
+            return;
+          }
+
+          // Phase 2: Zoom IN centered on target until range is <= 1km
           while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
             const rect = chart.getBoundingClientRect();
 
@@ -1272,11 +1307,17 @@ out geom qt;`;
             zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
             const centerY = rect.top + rect.height / 2;
 
+            // Move cursor to target position before zooming
+            chart.dispatchEvent(new MouseEvent('mousemove', {
+              bubbles: true, clientX: zoomCenterPx, clientY: centerY, view: window
+            }));
+            await new Promise(r => requestAnimationFrame(r));
+
             chart.dispatchEvent(new WheelEvent('wheel', {
               bubbles: true, cancelable: true, view: window,
               clientX: zoomCenterPx,
               clientY: centerY,
-              deltaY: -120,
+              deltaY: -120, // Negative = zoom in
               deltaMode: 0
             }));
 
@@ -1288,7 +1329,7 @@ out geom qt;`;
           }
 
           if (!visibleRange) {
-            sendResponse({ error: 'Lost chart range during zoom' });
+            sendResponse({ error: 'Lost chart range during zoom in' });
             return;
           }
 
