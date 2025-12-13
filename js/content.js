@@ -785,8 +785,8 @@ out geom qt;`;
       await new Promise(r => setTimeout(r, 100));
     },
 
-    // Zoom the chart to a target precision level
-    async zoomToDistance(targetKm, totalDistanceKm) {
+    // Zoom the chart to a good precision level
+    async zoomToPrecision(totalDistanceKm) {
       const chart = this.getElevationChart();
       if (!chart) return;
 
@@ -804,19 +804,17 @@ out geom qt;`;
         visibleRange = this.getChartVisibleRange();
       }
 
-      // Target: 500m visible range for good precision (~0.35m/pixel on 1400px chart)
+      // Target: 500m visible range for good precision
       const targetRangeKm = 0.5;
 
-      console.log(`Zooming to ${targetRangeKm * 1000}m visible range (centered on ${targetKm.toFixed(2)}km)`);
+      console.log(`Zooming to ${targetRangeKm * 1000}m visible range...`);
 
-      // Zoom smoothly by dispatching wheel events in quick succession
-      // Keep zooming until we reach target range
       let iterations = 0;
       const maxIterations = 50;
 
       while (iterations < maxIterations) {
-        // Get fresh rect and visible range each iteration
         const rect = chart.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
 
         await this.triggerChartUpdate();
@@ -829,94 +827,22 @@ out geom qt;`;
           break;
         }
 
-        // Calculate where to position mouse for zoom (center of current view for now)
-        // The zoom will center on this position
-        const zoomX = rect.left + rect.width / 2;
-
         // Dispatch wheel event to zoom in
         const wheelEvent = new WheelEvent('wheel', {
           bubbles: true, cancelable: true, view: window,
-          clientX: zoomX,
+          clientX: centerX,
           clientY: centerY,
-          deltaY: -120, // Standard wheel delta for one "notch"
+          deltaY: -120,
           deltaMode: 0
         });
         chart.dispatchEvent(wheelEvent);
 
-        // Short delay between wheel events for smooth animation
         await new Promise(r => setTimeout(r, 10));
         iterations++;
       }
 
-      // Final update and pan to center on target if needed
       await this.triggerChartUpdate();
-      const finalRange = this.getChartVisibleRange();
-
-      if (finalRange) {
-        const visibleCenter = (finalRange.startKm + finalRange.endKm) / 2;
-        const offset = Math.abs(targetKm - visibleCenter);
-
-        // If target is more than 25% off-center, pan to it
-        if (offset > finalRange.rangeKm * 0.25) {
-          console.log(`Panning to center on ${targetKm.toFixed(2)}km`);
-          await this.panChartTo(targetKm, totalDistanceKm);
-          await this.triggerChartUpdate();
-        }
-      }
-
       console.log('Final visible range:', this.getChartVisibleRange());
-    },
-
-    // Pan the chart to center on a specific distance
-    async panChartTo(targetKm, totalDistanceKm) {
-      const chart = this.getElevationChart();
-      if (!chart) return;
-
-      const rect = chart.getBoundingClientRect();
-      const centerY = rect.top + rect.height / 2;
-
-      const visibleRange = this.getChartVisibleRange();
-      if (!visibleRange) return;
-
-      // Calculate how far we need to pan
-      const visibleCenter = (visibleRange.startKm + visibleRange.endKm) / 2;
-      const panDistanceKm = targetKm - visibleCenter;
-
-      // Convert to pixels (approximately)
-      const pixelsPerKm = rect.width / visibleRange.rangeKm;
-      const panPixels = panDistanceKm * pixelsPerKm;
-
-      console.log(`Panning ${panDistanceKm.toFixed(2)}km = ${panPixels.toFixed(0)}px`);
-
-      // Simulate drag to pan
-      const startX = rect.left + rect.width / 2;
-      const endX = startX - panPixels; // Drag opposite direction to move view
-
-      chart.dispatchEvent(new MouseEvent('mousedown', {
-        bubbles: true, cancelable: true, view: window,
-        clientX: startX, clientY: centerY,
-        button: 0, buttons: 1, shiftKey: false
-      }));
-
-      // Drag in steps
-      const steps = 10;
-      for (let i = 1; i <= steps; i++) {
-        const x = startX + (endX - startX) * (i / steps);
-        chart.dispatchEvent(new MouseEvent('mousemove', {
-          bubbles: true, cancelable: true, view: window,
-          clientX: x, clientY: centerY,
-          button: 0, buttons: 1, shiftKey: false
-        }));
-        await new Promise(r => setTimeout(r, 30));
-      }
-
-      chart.dispatchEvent(new MouseEvent('mouseup', {
-        bubbles: true, cancelable: true, view: window,
-        clientX: endX, clientY: centerY,
-        button: 0, buttons: 0, shiftKey: false
-      }));
-
-      await new Promise(r => setTimeout(r, 200));
     },
 
     // Reset chart to full zoom (show entire route)
@@ -1162,50 +1088,36 @@ out geom qt;`;
     },
 
     // Apply a single brunnel (assumes chart is already zoomed)
-    // Pans to center on the brunnel for precise placement
     async applyBrunnel(brunnel, totalDistance) {
       const startKm = brunnel.startDistance;
       const endKm = brunnel.endDistance;
-      const centerKm = (startKm + endKm) / 2;
       const spanMeters = (endKm - startKm) * 1000;
 
       console.log(`=== Applying ${brunnel.type}: ${brunnel.name} ===`);
       console.log(`  Location: ${startKm.toFixed(3)}km - ${endKm.toFixed(3)}km (${spanMeters.toFixed(0)}m span)`);
 
-      // Pan to center on this brunnel for accurate placement
-      await this.panChartTo(centerKm, totalDistance);
-      await this.triggerChartUpdate();
-
-      // Log the visible range for debugging
-      const visibleRange = this.getChartVisibleRange();
-      if (visibleRange) {
-        console.log(`  Visible: ${visibleRange.startKm.toFixed(3)}km - ${visibleRange.endKm.toFixed(3)}km (precise: ${visibleRange.precise})`);
-      }
-
-      // Make the selection using actual km values
+      // Make the selection using actual km values (works even if off-screen)
       await this.simulateSelection(startKm, endKm, totalDistance);
 
       // Click the appropriate button
       await this.clickBrunnelButton(brunnel.type);
     },
 
-    // Apply multiple brunnels with a single zoom operation for efficiency
+    // Apply multiple brunnels with precision zoom
     async applyAllBrunnels(brunnels, totalDistance) {
       if (brunnels.length === 0) return;
 
       console.log(`Applying ${brunnels.length} brunnels with precision zoom`);
 
-      // Zoom to a good precision level (500m visible range = ~0.35m/pixel)
-      // Zoom centered on the first brunnel
-      const firstCenter = (brunnels[0].startDistance + brunnels[0].endDistance) / 2;
-      await this.zoomToDistance(firstCenter, totalDistance);
+      // Zoom to a good precision level (500m visible range)
+      await this.zoomToPrecision(totalDistance);
 
-      // Apply each brunnel, panning to each one
+      // Apply each brunnel (selection works even when off-screen)
       for (const brunnel of brunnels) {
         await this.applyBrunnel(brunnel, totalDistance);
       }
 
-      // Reset zoom once at the end
+      // Reset zoom at the end
       await this.resetChartZoom(totalDistance);
       console.log('All brunnels applied');
     }
