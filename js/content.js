@@ -31,29 +31,26 @@
   // ============================================================================
 
   const GeometryUtils = {
-    createRouteBuffer(route, bufferMeters) {
-      const bufferKilometers = bufferMeters / 1000;
-      return turf.buffer(route.turfLineString, bufferKilometers, { units: 'kilometers' });
-    },
-
     // Extract cumulative distances from Biketerra's embedded route data
     // Each coordinate has a 'distance' property with cumulative meters
     calculateCumulativeDistances(routeCoords) {
       return routeCoords.map(coord => coord.distance);
     },
 
-    brunnelWithin(brunnel, routeBuffer) {
-      for (const point of brunnel.turfPoints) {
-        if (!turf.booleanPointInPolygon(point, routeBuffer)) {
+    // Distance-based containment check (avoids problematic buffer polygon)
+    // Returns true if all brunnel points are within bufferMeters of the route
+    brunnelWithinDistance(brunnel, route, bufferMeters) {
+      const bufferKm = bufferMeters / 1000;
+      const routeLine = route.turfLineString;
+
+      for (const brunnelPoint of brunnel.turfPoints) {
+        const nearest = turf.nearestPointOnLine(routeLine, brunnelPoint);
+        const dist = turf.distance(brunnelPoint, nearest, { units: 'kilometers' });
+        if (dist > bufferKm) {
           return false;
         }
       }
-
-      const brunnelLine = brunnel.turfLineString;
-      const polygonBoundary = turf.polygonToLine(routeBuffer);
-      const intersections = turf.lineIntersect(brunnelLine, polygonBoundary);
-
-      return intersections.features.length === 0;
+      return true;
     },
 
     // Calculate route span using Turf for projection, but Biketerra's distances for positioning
@@ -400,8 +397,8 @@ out geom qt;`;
       return brunnels;
     }
 
-    isWithin(routeBuffer) {
-      return GeometryUtils.brunnelWithin(this, routeBuffer);
+    isWithinDistance(route, bufferMeters) {
+      return GeometryUtils.brunnelWithinDistance(this, route, bufferMeters);
     }
 
     calculateRouteSpan(route) {
@@ -425,9 +422,9 @@ out geom qt;`;
   // ============================================================================
 
   const BrunnelAnalysis = {
-    filterContained(brunnels, routeBuffer) {
+    filterContained(brunnels, route, bufferMeters) {
       return brunnels.filter(brunnel => {
-        const isWithin = brunnel.isWithin(routeBuffer);
+        const isWithin = brunnel.isWithinDistance(route, bufferMeters);
         if (!isWithin) brunnel.exclusionReason = 'outlier';
         return isWithin;
       });
@@ -1179,9 +1176,8 @@ out geom qt;`;
     // Create Brunnel instances
     const brunnels = Brunnel.fromOverpassData(overpassData);
 
-    // Filter by containment
-    const routeBufferGeom = GeometryUtils.createRouteBuffer(route, routeBuffer);
-    BrunnelAnalysis.filterContained(brunnels, routeBufferGeom);
+    // Filter by containment (distance-based, avoids buffer polygon issues)
+    BrunnelAnalysis.filterContained(brunnels, route, routeBuffer);
 
     // Calculate route spans
     BrunnelAnalysis.calculateRouteSpans(brunnels, route);
