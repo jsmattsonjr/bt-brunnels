@@ -429,6 +429,8 @@
     throw new Error('Unsupported geometry type for buffer: ' + geom.type);
   }
 
+  // Note: This buffer function is kept for compatibility but is no longer used
+  // for containment checking. Distance-based checking is used instead.
   function bufferLineString(coords, radius, units) {
     if (coords.length < 2) {
       return polygon([[[0,0],[0,0],[0,0],[0,0]]]);
@@ -446,7 +448,6 @@
       } else {
         const bearingIn = rhumbBearing(point(coords[i-1]), point(coords[i]));
         const bearingOut = rhumbBearing(point(coords[i]), point(coords[i+1]));
-        // Average bearing handling for sharp turns
         let diff = bearingOut - bearingIn;
         if (diff > 180) diff -= 360;
         if (diff < -180) diff += 360;
