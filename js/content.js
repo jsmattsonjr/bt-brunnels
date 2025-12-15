@@ -931,98 +931,6 @@ out geom qt;`;
       await new Promise(r => requestAnimationFrame(r));
     },
 
-    // Zoom the chart to a good precision level
-    async zoomToPrecision(totalDistanceKm) {
-      const chart = this.getElevationChart();
-      if (!chart) return;
-
-      // Trigger mouse interaction to ensure labels are up to date
-      await this.triggerChartUpdate();
-
-      let visibleRange = this.getChartVisibleRange();
-
-      // If we're not at full zoom, reset first
-      if (visibleRange && visibleRange.rangeKm < totalDistanceKm * 0.9) {
-        await this.resetChartZoom(totalDistanceKm);
-        await this.triggerChartUpdate();
-        visibleRange = this.getChartVisibleRange();
-      }
-
-      // Target: 500m visible range for good precision
-      const targetRangeKm = 0.5;
-
-
-      let iterations = 0;
-      const maxIterations = 50;
-
-      while (iterations < maxIterations) {
-        const rect = chart.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        await this.triggerChartUpdate();
-        const currentRange = this.getChartVisibleRange();
-        if (!currentRange) break;
-
-        // Check if we've reached target zoom
-        if (currentRange.rangeKm <= targetRangeKm) {
-          break;
-        }
-
-        // Dispatch wheel event to zoom in
-        const wheelEvent = new WheelEvent('wheel', {
-          bubbles: true, cancelable: true, view: window,
-          clientX: centerX,
-          clientY: centerY,
-          deltaY: -120,
-          deltaMode: 0
-        });
-        chart.dispatchEvent(wheelEvent);
-
-        await new Promise(r => requestAnimationFrame(r));
-        iterations++;
-      }
-
-      await this.triggerChartUpdate();
-    },
-
-    // Reset chart to full zoom (show entire route)
-    async resetChartZoom(totalDistanceKm) {
-      const chart = this.getElevationChart();
-      if (!chart) return;
-
-      await this.triggerChartUpdate();
-
-      // Zoom out smoothly until we see the full route
-      let iterations = 0;
-      const maxIterations = 50;
-
-      while (iterations < maxIterations) {
-        const rect = chart.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        await this.triggerChartUpdate();
-        const visibleRange = this.getChartVisibleRange();
-
-        if (visibleRange && visibleRange.rangeKm >= totalDistanceKm * 0.95) {
-          break;
-        }
-
-        const wheelEvent = new WheelEvent('wheel', {
-          bubbles: true, cancelable: true, view: window,
-          clientX: centerX, clientY: centerY,
-          deltaY: 120, // Scroll to zoom out
-          deltaMode: 0
-        });
-        chart.dispatchEvent(wheelEvent);
-        await new Promise(r => requestAnimationFrame(r));
-        iterations++;
-      }
-
-      await this.triggerChartUpdate();
-    },
-
     // Clear any existing selection
     async clearSelection() {
       const chart = this.getElevationChart();
@@ -1211,12 +1119,98 @@ out geom qt;`;
       await new Promise(resolve => setTimeout(resolve, 1));
     },
 
-    // Apply a single brunnel (assumes chart is already zoomed)
+    // Zoom the chart to show a specific brunnel
+    // Returns the visible range after zooming, or null on error
+    async zoomToBrunnel(brunnel) {
+      const chart = this.getElevationChart();
+      if (!chart) return null;
+
+      // Calculate midpoint for centering zoom
+      const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
+
+      // Get the visible range and zoom if needed
+      await this.triggerChartUpdate();
+      let visibleRange = this.getChartVisibleRange();
+
+      if (!visibleRange) return null;
+
+      const maxRangeKm = 1.0;
+      let iterations = 0;
+      const maxIterations = 50;
+
+      // Phase 1: Zoom OUT until target is in visible range
+      while ((midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) && iterations < maxIterations) {
+        const rect = chart.getBoundingClientRect();
+        const centerY = rect.top + rect.height / 2;
+
+        // Zoom out from the edge farthest from target
+        let zoomPx;
+        if (midpointKm < visibleRange.startKm) {
+          zoomPx = rect.right - 10;
+        } else {
+          zoomPx = rect.left + 10;
+        }
+
+        chart.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: zoomPx, clientY: centerY,
+          deltaY: 120, deltaMode: 0
+        }));
+
+        await new Promise(r => requestAnimationFrame(r));
+        await this.triggerChartUpdate();
+        visibleRange = this.getChartVisibleRange();
+        if (!visibleRange) return null;
+        iterations++;
+      }
+
+      // Phase 2: Zoom IN centered on target until range is <= 1km
+      while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
+        const rect = chart.getBoundingClientRect();
+
+        let zoomCenterPx;
+        if (visibleRange.percentPerKm) {
+          const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
+          zoomCenterPx = rect.left + (percent / 100) * rect.width;
+        } else {
+          const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
+          zoomCenterPx = rect.left + relative * rect.width;
+        }
+        zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
+        const centerY = rect.top + rect.height / 2;
+
+        chart.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true, clientX: zoomCenterPx, clientY: centerY, view: window
+        }));
+        await new Promise(r => requestAnimationFrame(r));
+
+        chart.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: zoomCenterPx, clientY: centerY,
+          deltaY: -120, deltaMode: 0
+        }));
+
+        await new Promise(r => requestAnimationFrame(r));
+        await this.triggerChartUpdate();
+        visibleRange = this.getChartVisibleRange();
+        if (!visibleRange) return null;
+        iterations++;
+      }
+
+      return visibleRange;
+    },
+
+    // Apply a single brunnel with zoom to ensure visibility
     // routeCoords is required for track point workaround
-    // If visibleRange is provided, skips chart updates (for batch operations)
-    async applyBrunnel(brunnel, totalDistance, routeCoords, visibleRange = null) {
+    async applyBrunnel(brunnel, routeCoords) {
       const startKm = brunnel.startDistance;
       const endKm = brunnel.endDistance;
+
+      // Zoom to show this brunnel
+      const visibleRange = await this.zoomToBrunnel(brunnel);
+      if (!visibleRange) {
+        throw new Error('Could not zoom to brunnel');
+      }
 
       // Check if routespan contains at least 2 track points
       const trackPointInfo = this.getTrackPointsInRange(routeCoords, startKm, endKm);
@@ -1227,35 +1221,27 @@ out geom qt;`;
         await this.simulateSelection(
           trackPointInfo.expandedRange.startKm,
           trackPointInfo.expandedRange.endKm,
-          totalDistance, visibleRange
+          null, visibleRange
         );
         // Right-click to deselect
         await this.rightClickToDeselect();
       }
 
       // Make the selection using actual km values
-      await this.simulateSelection(startKm, endKm, totalDistance, visibleRange);
+      await this.simulateSelection(startKm, endKm, null, visibleRange);
 
       // Click the appropriate button
       await this.clickBrunnelButton(brunnel.type);
     },
 
-    // Apply multiple brunnels with precision zoom
-    async applyAllBrunnels(brunnels, totalDistance, routeCoords) {
+    // Apply multiple brunnels, zooming to each one
+    async applyAllBrunnels(brunnels, routeCoords) {
       if (brunnels.length === 0) return;
 
-      // Zoom to a good precision level (500m visible range)
-      await this.zoomToPrecision(totalDistance);
-
-      // Get visible range once after zooming (reuse for all brunnels)
-      await this.triggerChartUpdate();
-      const visibleRange = this.getChartVisibleRange();
-
-      // Apply each brunnel (selection works even when off-screen)
+      // Apply each brunnel with zoom
       for (const brunnel of brunnels) {
-        await this.applyBrunnel(brunnel, totalDistance, routeCoords, visibleRange);
+        await this.applyBrunnel(brunnel, routeCoords);
       }
-
     }
   };
 
@@ -1477,122 +1463,12 @@ out geom qt;`;
     try {
       await loadTurf();
 
-      const chart = BiketerraIntegration.getElevationChart();
-      if (!chart) {
-        updateStatus('Elevation chart not found', 'error');
-        return;
-      }
-
-      // Calculate midpoint for centering zoom
-      const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
-
-      // Get the visible range and zoom if needed
-      await BiketerraIntegration.triggerChartUpdate();
-      let visibleRange = BiketerraIntegration.getChartVisibleRange();
-
-      if (!visibleRange) {
-        updateStatus('Could not determine chart visible range', 'error');
-        return;
-      }
-
-      const maxRangeKm = 1.0;
-      let iterations = 0;
-      const maxIterations = 50;
-
-      // Phase 1: Zoom OUT until target is in visible range
-      while ((midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) && iterations < maxIterations) {
-        const rect = chart.getBoundingClientRect();
-        const centerY = rect.top + rect.height / 2;
-
-        let zoomPx;
-        if (midpointKm < visibleRange.startKm) {
-          zoomPx = rect.right - 10;
-        } else {
-          zoomPx = rect.left + 10;
-        }
-
-        chart.dispatchEvent(new WheelEvent('wheel', {
-          bubbles: true, cancelable: true, view: window,
-          clientX: zoomPx, clientY: centerY,
-          deltaY: 120, deltaMode: 0
-        }));
-
-        await new Promise(r => requestAnimationFrame(r));
-        await BiketerraIntegration.triggerChartUpdate();
-        visibleRange = BiketerraIntegration.getChartVisibleRange();
-        if (!visibleRange) break;
-        iterations++;
-      }
-
-      if (!visibleRange) {
-        updateStatus('Lost chart range during zoom out', 'error');
-        return;
-      }
-
-      // Phase 2: Zoom IN centered on target until range is <= 1km
-      while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
-        const rect = chart.getBoundingClientRect();
-
-        let zoomCenterPx;
-        if (visibleRange.percentPerKm) {
-          const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
-          zoomCenterPx = rect.left + (percent / 100) * rect.width;
-        } else {
-          const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
-          zoomCenterPx = rect.left + relative * rect.width;
-        }
-        zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
-        const centerY = rect.top + rect.height / 2;
-
-        chart.dispatchEvent(new MouseEvent('mousemove', {
-          bubbles: true, clientX: zoomCenterPx, clientY: centerY, view: window
-        }));
-        await new Promise(r => requestAnimationFrame(r));
-
-        chart.dispatchEvent(new WheelEvent('wheel', {
-          bubbles: true, cancelable: true, view: window,
-          clientX: zoomCenterPx, clientY: centerY,
-          deltaY: -120, deltaMode: 0
-        }));
-
-        await new Promise(r => requestAnimationFrame(r));
-        await BiketerraIntegration.triggerChartUpdate();
-        visibleRange = BiketerraIntegration.getChartVisibleRange();
-        if (!visibleRange) break;
-        iterations++;
-      }
-
-      if (!visibleRange) {
-        updateStatus('Lost chart range during zoom in', 'error');
-        return;
-      }
-
-      // Fetch route data to check track points
+      // Fetch route data for track point workaround
       const simpleRoute = await BiketerraIntegration.fetchRouteData();
       const route = BiketerraIntegration.parseRouteData(simpleRoute);
 
-      // Check if routespan contains at least 2 track points
-      const trackPointInfo = BiketerraIntegration.getTrackPointsInRange(
-        route.coordinates, brunnel.startDistance, brunnel.endDistance
-      );
-
-      // If fewer than 2 track points, do the wider selection workaround
-      if (trackPointInfo.expandedRange) {
-        // First select the expanded range (triggers map zoom)
-        await BiketerraIntegration.simulateSelection(
-          trackPointInfo.expandedRange.startKm,
-          trackPointInfo.expandedRange.endKm,
-          null, visibleRange
-        );
-        // Right-click to deselect
-        await BiketerraIntegration.rightClickToDeselect();
-      }
-
-      // Apply the brunnel with actual range
-      await BiketerraIntegration.simulateSelection(
-        brunnel.startDistance, brunnel.endDistance, null, visibleRange
-      );
-      await BiketerraIntegration.clickBrunnelButton(brunnel.type);
+      // Apply the brunnel (handles zoom and track point workaround)
+      await BiketerraIntegration.applyBrunnel(brunnel, route.coordinates);
 
       // Mark as applied
       appliedBrunnelIds.add(brunnel.id);
@@ -1634,7 +1510,7 @@ out geom qt;`;
       // Sort by start distance
       const sorted = [...remaining].sort((a, b) => a.startDistance - b.startDistance);
 
-      await BiketerraIntegration.applyAllBrunnels(sorted, route.totalDistance, route.coordinates);
+      await BiketerraIntegration.applyAllBrunnels(sorted, route.coordinates);
 
       // Mark all as applied in UI
       for (const brunnel of sorted) {
@@ -1745,117 +1621,9 @@ out geom qt;`;
       (async () => {
         try {
           await loadTurf();
-
-          const chart = BiketerraIntegration.getElevationChart();
-          if (!chart) {
-            sendResponse({ error: 'Elevation chart not found' });
-            return;
-          }
-
-          const brunnel = message.brunnel;
-
-          // Calculate midpoint for centering zoom
-          const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
-
-          // Get the visible range and zoom if needed
-          await BiketerraIntegration.triggerChartUpdate();
-          let visibleRange = BiketerraIntegration.getChartVisibleRange();
-
-          if (!visibleRange) {
-            sendResponse({ error: 'Could not determine chart visible range' });
-            return;
-          }
-
-          const maxRangeKm = 1.0;
-          let iterations = 0;
-          const maxIterations = 50;
-
-          // Phase 1: Zoom OUT until target is in visible range
-          while ((midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) && iterations < maxIterations) {
-            const rect = chart.getBoundingClientRect();
-            const centerY = rect.top + rect.height / 2;
-
-            // Move cursor to the side FARTHEST from the target, then zoom out
-            let zoomPx;
-            if (midpointKm < visibleRange.startKm) {
-              // Target is to the left - zoom out from RIGHT edge
-              zoomPx = rect.right - 10;
-            } else {
-              // Target is to the right - zoom out from LEFT edge
-              zoomPx = rect.left + 10;
-            }
-
-            chart.dispatchEvent(new WheelEvent('wheel', {
-              bubbles: true, cancelable: true, view: window,
-              clientX: zoomPx,
-              clientY: centerY,
-              deltaY: 120, // Positive = zoom out
-              deltaMode: 0
-            }));
-
-            await new Promise(r => requestAnimationFrame(r));
-            await BiketerraIntegration.triggerChartUpdate();
-            visibleRange = BiketerraIntegration.getChartVisibleRange();
-            if (!visibleRange) break;
-            iterations++;
-          }
-
-          if (!visibleRange) {
-            sendResponse({ error: 'Lost chart range during zoom out' });
-            return;
-          }
-
-          // Phase 2: Zoom IN centered on target until range is <= 1km
-          while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
-            const rect = chart.getBoundingClientRect();
-
-            // Calculate pixel position for brunnel midpoint to zoom centered on it
-            let zoomCenterPx;
-            if (visibleRange.percentPerKm) {
-              const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
-              zoomCenterPx = rect.left + (percent / 100) * rect.width;
-            } else {
-              const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
-              zoomCenterPx = rect.left + relative * rect.width;
-            }
-            zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
-            const centerY = rect.top + rect.height / 2;
-
-            // Move cursor to target position before zooming
-            chart.dispatchEvent(new MouseEvent('mousemove', {
-              bubbles: true, clientX: zoomCenterPx, clientY: centerY, view: window
-            }));
-            await new Promise(r => requestAnimationFrame(r));
-
-            chart.dispatchEvent(new WheelEvent('wheel', {
-              bubbles: true, cancelable: true, view: window,
-              clientX: zoomCenterPx,
-              clientY: centerY,
-              deltaY: -120, // Negative = zoom in
-              deltaMode: 0
-            }));
-
-            await new Promise(r => requestAnimationFrame(r));
-            await BiketerraIntegration.triggerChartUpdate();
-            visibleRange = BiketerraIntegration.getChartVisibleRange();
-            if (!visibleRange) break;
-            iterations++;
-          }
-
-          if (!visibleRange) {
-            sendResponse({ error: 'Lost chart range during zoom in' });
-            return;
-          }
-
-          // Apply the brunnel (selection + button click)
-          await BiketerraIntegration.simulateSelection(
-            brunnel.startDistance,
-            brunnel.endDistance,
-            null, // totalDistance not needed with visibleRange
-            visibleRange
-          );
-          await BiketerraIntegration.clickBrunnelButton(brunnel.type);
-
+          const simpleRoute = await BiketerraIntegration.fetchRouteData();
+          const route = BiketerraIntegration.parseRouteData(simpleRoute);
+          await BiketerraIntegration.applyBrunnel(message.brunnel, route.coordinates);
           sendResponse({ success: true });
         } catch (error) {
           sendResponse({ error: error.message });
@@ -1870,7 +1638,7 @@ out geom qt;`;
           await loadTurf();
           const simpleRoute = await BiketerraIntegration.fetchRouteData();
           const route = BiketerraIntegration.parseRouteData(simpleRoute);
-          await BiketerraIntegration.applyAllBrunnels(message.brunnels, route.totalDistance);
+          await BiketerraIntegration.applyAllBrunnels(message.brunnels, route.coordinates);
           sendResponse({ success: true });
         } catch (error) {
           sendResponse({ error: error.message });
