@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Biketerra Brunnels",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Automatically locate and apply bridges/tunnels from OpenStreetMap to Biketerra routes",
   "permissions": [
     "activeTab",
@@ -11,13 +11,16 @@
     "https://biketerra.com/*",
     "https://overpass-api.de/*"
   ],
+  "background": {
+    "service_worker": "js/background.js"
+  },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_title": "Toggle Brunnels Panel"
   },
   "content_scripts": [
     {

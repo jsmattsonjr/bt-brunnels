@@ -1,28 +1,66 @@
 /* Biketerra Brunnels Extension - Content Script Styles */
 
+/* CSS Variables matching Biketerra theme */
 .bt-brunnels-panel {
+  --bt-a: #FF6262;
+  --bt-b: #DC5666;
+  --bt-c: #B14674;
+  --bt-d: #7F347C;
+  --bt-e: #572667;
+  --bt-9: #FC8174;
+  --bt-8: #FFA574;
+  --bt-7: #FFCD7C;
+  --bt-6: #FFE37D;
+  --bt-dark: #484044;
+  --bt-darker: #363033;
+  --bt-darkest: #242022;
+  --bt-mid: #908088;
+  --bt-light: #D6D0D3;
+  --bt-lighter: #E8E0E4;
+  --bt-offwhite: #F2F2F2;
+  --bt-offwhite-75: #F2F2F2BB;
+  --bt-offwhite-50: #F2F2F277;
+  --bt-lowlight: #24202066;
+  --bt-warn: #ffd438;
+  --bt-error: #7e2015;
+
   position: fixed;
-  top: 10px;
+  top: 60px;
   right: 10px;
-  width: 280px;
-  max-height: 400px;
-  background: white;
+  width: 320px;
+  max-height: calc(100vh - 80px);
+  background: var(--bt-dark);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   z-index: 10000;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  overflow: hidden;
+  font-family: 'Overpass', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: var(--bt-offwhite);
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.bt-brunnels-panel.hidden {
+  display: none;
 }
 
 .bt-brunnels-header {
-  padding: 12px;
-  background: #2c5282;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--bt-a), var(--bt-d));
   color: white;
   font-weight: 600;
+  font-size: 15px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-radius: 8px 8px 0 0;
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.bt-brunnels-header:active {
+  cursor: grabbing;
 }
 
 .bt-brunnels-close {
@@ -30,127 +68,243 @@
   border: none;
   color: white;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   padding: 0;
+  opacity: 0.8;
+  transition: opacity 0.15s;
 }
 
-.bt-brunnels-content {
-  padding: 12px;
-  max-height: 340px;
+.bt-brunnels-close:hover {
+  opacity: 1;
+}
+
+.bt-brunnels-body {
+  padding: 16px;
+  flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .bt-brunnels-status {
-  padding: 8px;
-  margin-bottom: 10px;
-  border-radius: 4px;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bt-lowlight);
+  color: var(--bt-light);
+  font-size: 13px;
 }
 
 .bt-brunnels-status.loading {
-  background: #ebf8ff;
-  border-color: #90cdf4;
+  color: var(--bt-7);
 }
 
 .bt-brunnels-status.error {
-  background: #fed7d7;
-  border-color: #fc8181;
-  color: #c53030;
+  background: var(--bt-error);
+  color: var(--bt-offwhite);
 }
 
 .bt-brunnels-status.success {
-  background: #c6f6d5;
-  border-color: #68d391;
-  color: #276749;
+  background: var(--bt-e);
+  color: var(--bt-offwhite);
 }
 
-.bt-brunnels-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.bt-brunnel-item {
-  padding: 8px;
-  margin-bottom: 6px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.bt-brunnel-item:hover {
-  opacity: 0.8;
-}
-
-.bt-brunnel-item.bridge {
-  background: #fed7d7;
-  border-left: 3px solid #e53e3e;
-}
-
-.bt-brunnel-item.tunnel {
-  background: #e9d8fd;
-  border-left: 3px solid #805ad5;
-}
-
-.bt-brunnel-item.applied {
-  opacity: 0.5;
-}
-
-.bt-brunnel-item.applied::after {
-  content: ' ✓';
-  color: #38a169;
-}
-
-.bt-brunnel-name {
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.bt-brunnel-span {
-  font-size: 11px;
-  color: #718096;
-}
-
-.bt-brunnels-actions {
+/* Options section */
+.bt-brunnels-options {
   padding: 12px;
-  border-top: 1px solid #e2e8f0;
+  background: var(--bt-lowlight);
+  border-radius: 6px;
+}
+
+.bt-option-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.bt-option-row:last-child {
+  margin-bottom: 0;
+}
+
+.bt-option-row label {
+  color: var(--bt-light);
+  font-size: 13px;
+}
+
+.bt-option-row input[type="number"] {
+  width: 60px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: var(--bt-darker);
+  color: var(--bt-offwhite);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: right;
+}
+
+.bt-option-row input[type="number"]:focus {
+  outline: 2px solid var(--bt-a);
+  outline-offset: -2px;
+}
+
+/* Buttons */
+.bt-brunnels-actions {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
 .bt-brunnels-btn {
-  flex: 1;
-  padding: 8px 12px;
+  width: 100%;
+  padding: 10px 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 500;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.bt-brunnels-btn:active {
+  transform: scale(0.98);
 }
 
 .bt-brunnels-btn.primary {
-  background: #3182ce;
+  background: linear-gradient(135deg, var(--bt-a), var(--bt-b));
   color: white;
 }
 
 .bt-brunnels-btn.primary:hover {
-  background: #2c5282;
+  background: linear-gradient(135deg, var(--bt-9), var(--bt-a));
 }
 
 .bt-brunnels-btn.primary:disabled {
-  background: #a0aec0;
+  background: var(--bt-darker);
+  color: var(--bt-mid);
   cursor: not-allowed;
+  transform: none;
 }
 
 .bt-brunnels-btn.secondary {
-  background: #e2e8f0;
-  color: #4a5568;
+  background: var(--bt-lowlight);
+  color: var(--bt-light);
 }
 
 .bt-brunnels-btn.secondary:hover {
-  background: #cbd5e0;
+  background: var(--bt-darker);
+  color: var(--bt-offwhite);
+}
+
+/* Progress */
+.bt-brunnels-progress {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--bt-7);
+  background: var(--bt-lowlight);
+  border-radius: 6px;
+}
+
+/* Results list */
+.bt-brunnels-results {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.bt-brunnels-results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bt-brunnels-results::-webkit-scrollbar-track {
+  background: var(--bt-lowlight);
+  border-radius: 3px;
+}
+
+.bt-brunnels-results::-webkit-scrollbar-thumb {
+  background: var(--bt-mid);
+  border-radius: 3px;
+}
+
+.bt-brunnels-results::-webkit-scrollbar-thumb:hover {
+  background: var(--bt-light);
+}
+
+.bt-brunnel-item {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--bt-a), var(--bt-b));
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bt-brunnel-item:hover {
+  background: linear-gradient(135deg, var(--bt-9), var(--bt-a));
+}
+
+.bt-brunnel-item:last-child {
+  margin-bottom: 0;
+}
+
+.bt-brunnel-item.applied {
+  background: var(--bt-darker);
+  cursor: default;
+}
+
+.bt-brunnel-item.applied:hover {
+  background: var(--bt-darker);
+}
+
+.bt-brunnel-item.applied .bt-brunnel-name,
+.bt-brunnel-item.applied .bt-brunnel-span {
+  color: var(--bt-mid);
+}
+
+.bt-brunnel-item.applied .bt-brunnel-icon path {
+  fill: var(--bt-mid);
+  stroke: var(--bt-mid);
+}
+
+.bt-brunnel-icon {
+  width: 24px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.bt-brunnel-icon path {
+  fill: var(--bt-offwhite);
+  stroke: var(--bt-offwhite);
+}
+
+.bt-brunnel-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.bt-brunnel-name {
+  font-weight: 500;
+  color: var(--bt-offwhite);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bt-brunnel-span {
+  color: var(--bt-offwhite-75);
+  font-size: 12px;
+}
+
+.bt-empty-message {
+  color: var(--bt-mid);
+  text-align: center;
+  padding: 16px;
 }
 
 /* Highlight overlay for elevation graph preview */

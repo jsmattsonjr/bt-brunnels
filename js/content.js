@@ -5,6 +5,27 @@
   'use strict';
 
   // ============================================================================
+  // SVG Icons
+  // ============================================================================
+
+  const BRIDGE_ICON = `<svg class="bt-brunnel-icon" viewBox="0 0 147 71" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M74.5 5C39 5 35.5 24.5 5 24.5V66H19H33C36 41 46 24.5 74.5 24.5C101.5 24.5 111 40 116 66H142V24.5C111 24.5 108 5 74.5 5Z" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+  const TUNNEL_ICON = `<svg class="bt-brunnel-icon" viewBox="0 0 118 87" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M58.5 5.21033H5V81.7103H35C30.5 73.5 26.5 66 26.5 53.2103C26.5 34 42.5 20 60 20C77.5 20 92.5 33.5 92.5 53.2103C92.5 66 89.5 74.5 83 81.7103H112.5V5.21033H58.5Z" stroke-width="10" stroke-linejoin="round"/>
+</svg>`;
+
+  // ============================================================================
+  // Panel State
+  // ============================================================================
+
+  let panelElement = null;
+  let locatedBrunnels = [];
+  let appliedBrunnelIds = new Set();
+  let totalDistance = 0;
+
+  // ============================================================================
   // Turf.js CSP-compatible subset loaded via manifest content_scripts
   // ============================================================================
 
@@ -1153,6 +1174,378 @@ out geom qt;`;
   };
 
   // ============================================================================
+  // Overlay Panel UI
+  // ============================================================================
+
+  function createPanel() {
+    if (panelElement) return panelElement;
+
+    const panel = document.createElement('div');
+    panel.className = 'bt-brunnels-panel hidden';
+    panel.innerHTML = `
+      <div class="bt-brunnels-header">
+        <span>Biketerra Brunnels</span>
+        <button class="bt-brunnels-close" title="Close">&times;</button>
+      </div>
+      <div class="bt-brunnels-body">
+        <div class="bt-brunnels-status">Ready. Click "Locate Brunnels" to find bridges and tunnels on this route.</div>
+
+        <div class="bt-brunnels-options">
+          <div class="bt-option-row">
+            <label for="bt-queryBuffer">Query buffer (m)</label>
+            <input type="number" id="bt-queryBuffer" value="10" min="5" max="50">
+          </div>
+          <div class="bt-option-row">
+            <label for="bt-routeBuffer">Route buffer (m)</label>
+            <input type="number" id="bt-routeBuffer" value="3" min="1" max="20">
+          </div>
+          <div class="bt-option-row">
+            <label for="bt-bearingTolerance">Bearing tolerance</label>
+            <input type="number" id="bt-bearingTolerance" value="20" min="5" max="45">
+          </div>
+        </div>
+
+        <div class="bt-brunnels-actions">
+          <button id="bt-locateBtn" class="bt-brunnels-btn primary">Locate Brunnels</button>
+          <button id="bt-applyBtn" class="bt-brunnels-btn primary" disabled>Apply All to Route</button>
+        </div>
+
+        <div id="bt-progress" class="bt-brunnels-progress" style="display: none;"></div>
+
+        <div id="bt-results" class="bt-brunnels-results"></div>
+      </div>
+    `;
+
+    document.body.appendChild(panel);
+    panelElement = panel;
+
+    // Event listeners
+    panel.querySelector('.bt-brunnels-close').addEventListener('click', hidePanel);
+    panel.querySelector('#bt-locateBtn').addEventListener('click', handleLocateBrunnels);
+    panel.querySelector('#bt-applyBtn').addEventListener('click', handleApplyAllBrunnels);
+
+    // Re-enable Locate button when options change
+    const locateBtn = panel.querySelector('#bt-locateBtn');
+    for (const input of panel.querySelectorAll('.bt-brunnels-options input')) {
+      input.addEventListener('input', () => {
+        locateBtn.disabled = false;
+      });
+    }
+
+    // Drag functionality
+    const header = panel.querySelector('.bt-brunnels-header');
+    let isDragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    header.addEventListener('mousedown', (e) => {
+      // Don't drag when clicking the close button
+      if (e.target.closest('.bt-brunnels-close')) return;
+
+      isDragging = true;
+      const rect = panel.getBoundingClientRect();
+      dragOffsetX = e.clientX - rect.left;
+      dragOffsetY = e.clientY - rect.top;
+
+      // Prevent text selection while dragging
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+
+      const x = e.clientX - dragOffsetX;
+      const y = e.clientY - dragOffsetY;
+
+      // Keep panel within viewport bounds
+      const maxX = window.innerWidth - panel.offsetWidth;
+      const maxY = window.innerHeight - panel.offsetHeight;
+
+      panel.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+      panel.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+      panel.style.right = 'auto';
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    return panel;
+  }
+
+  function showPanel() {
+    const panel = createPanel();
+    panel.classList.remove('hidden');
+  }
+
+  function hidePanel() {
+    if (panelElement) {
+      panelElement.classList.add('hidden');
+    }
+  }
+
+  function togglePanel() {
+    const panel = createPanel();
+    panel.classList.toggle('hidden');
+  }
+
+  function updateStatus(text, type = '') {
+    const status = panelElement?.querySelector('.bt-brunnels-status');
+    if (status) {
+      status.textContent = text;
+      status.className = 'bt-brunnels-status' + (type ? ' ' + type : '');
+    }
+  }
+
+  function showProgress(text) {
+    const progress = panelElement?.querySelector('#bt-progress');
+    if (progress) {
+      progress.textContent = text;
+      progress.style.display = 'block';
+    }
+  }
+
+  function hideProgress() {
+    const progress = panelElement?.querySelector('#bt-progress');
+    if (progress) {
+      progress.style.display = 'none';
+    }
+  }
+
+  function displayResults(brunnels, distance) {
+    const resultsDiv = panelElement?.querySelector('#bt-results');
+    if (!resultsDiv) return;
+
+    resultsDiv.innerHTML = '';
+
+    if (brunnels.length === 0) {
+      resultsDiv.innerHTML = '<p class="bt-empty-message">No brunnels found on this route.</p>';
+      return;
+    }
+
+    // Sort by start distance
+    const sorted = [...brunnels].sort((a, b) => a.startDistance - b.startDistance);
+
+    for (const brunnel of sorted) {
+      const item = document.createElement('div');
+      item.className = `bt-brunnel-item ${brunnel.type}`;
+      item.dataset.id = brunnel.id;
+
+      const startKm = brunnel.startDistance.toFixed(2);
+      const endKm = brunnel.endDistance.toFixed(2);
+      const lengthM = ((brunnel.endDistance - brunnel.startDistance) * 1000).toFixed(0);
+
+      const icon = brunnel.type === 'bridge' ? BRIDGE_ICON : TUNNEL_ICON;
+      item.innerHTML = `
+        ${icon}
+        <div class="bt-brunnel-info">
+          <div class="bt-brunnel-name">${brunnel.name}</div>
+          <div class="bt-brunnel-span">${startKm} - ${endKm} km (${lengthM}m)</div>
+        </div>
+      `;
+
+      item.addEventListener('click', () => handleApplySingleBrunnel(brunnel, item));
+      resultsDiv.appendChild(item);
+    }
+  }
+
+  async function handleLocateBrunnels() {
+    const locateBtn = panelElement?.querySelector('#bt-locateBtn');
+    const applyBtn = panelElement?.querySelector('#bt-applyBtn');
+
+    const queryBuffer = parseInt(panelElement?.querySelector('#bt-queryBuffer')?.value) || 10;
+    const routeBuffer = parseInt(panelElement?.querySelector('#bt-routeBuffer')?.value) || 3;
+    const bearingTolerance = parseInt(panelElement?.querySelector('#bt-bearingTolerance')?.value) || 20;
+
+    updateStatus('Locating brunnels...', 'loading');
+    showProgress('Extracting route data...');
+    if (locateBtn) locateBtn.disabled = true;
+
+    try {
+      const result = await locateBrunnels({ queryBuffer, routeBuffer, bearingTolerance });
+
+      locatedBrunnels = result.brunnels;
+      totalDistance = result.totalDistance;
+      appliedBrunnelIds = new Set();
+
+      displayResults(locatedBrunnels, totalDistance);
+
+      updateStatus(`Found ${locatedBrunnels.length} brunnel(s). Click to apply individually.`, 'success');
+      if (applyBtn) applyBtn.disabled = locatedBrunnels.length === 0;
+      hideProgress();
+    } catch (error) {
+      updateStatus(`Error: ${error.message}`, 'error');
+      hideProgress();
+      if (locateBtn) locateBtn.disabled = false;
+    }
+  }
+
+  async function handleApplySingleBrunnel(brunnel, item) {
+    // Skip if already applied
+    if (appliedBrunnelIds.has(brunnel.id)) return;
+
+    const applyBtn = panelElement?.querySelector('#bt-applyBtn');
+
+    updateStatus(`Applying ${brunnel.name}...`, 'loading');
+
+    try {
+      await loadTurf();
+
+      const chart = BiketerraIntegration.getElevationChart();
+      if (!chart) {
+        updateStatus('Elevation chart not found', 'error');
+        return;
+      }
+
+      // Calculate midpoint for centering zoom
+      const midpointKm = (brunnel.startDistance + brunnel.endDistance) / 2;
+
+      // Get the visible range and zoom if needed
+      await BiketerraIntegration.triggerChartUpdate();
+      let visibleRange = BiketerraIntegration.getChartVisibleRange();
+
+      if (!visibleRange) {
+        updateStatus('Could not determine chart visible range', 'error');
+        return;
+      }
+
+      const maxRangeKm = 1.0;
+      let iterations = 0;
+      const maxIterations = 50;
+
+      // Phase 1: Zoom OUT until target is in visible range
+      while ((midpointKm < visibleRange.startKm || midpointKm > visibleRange.endKm) && iterations < maxIterations) {
+        const rect = chart.getBoundingClientRect();
+        const centerY = rect.top + rect.height / 2;
+
+        let zoomPx;
+        if (midpointKm < visibleRange.startKm) {
+          zoomPx = rect.right - 10;
+        } else {
+          zoomPx = rect.left + 10;
+        }
+
+        chart.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: zoomPx, clientY: centerY,
+          deltaY: 120, deltaMode: 0
+        }));
+
+        await new Promise(r => requestAnimationFrame(r));
+        await BiketerraIntegration.triggerChartUpdate();
+        visibleRange = BiketerraIntegration.getChartVisibleRange();
+        if (!visibleRange) break;
+        iterations++;
+      }
+
+      if (!visibleRange) {
+        updateStatus('Lost chart range during zoom out', 'error');
+        return;
+      }
+
+      // Phase 2: Zoom IN centered on target until range is <= 1km
+      while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
+        const rect = chart.getBoundingClientRect();
+
+        let zoomCenterPx;
+        if (visibleRange.percentPerKm) {
+          const percent = (midpointKm - visibleRange.startKm) * visibleRange.percentPerKm;
+          zoomCenterPx = rect.left + (percent / 100) * rect.width;
+        } else {
+          const relative = (midpointKm - visibleRange.startKm) / visibleRange.rangeKm;
+          zoomCenterPx = rect.left + relative * rect.width;
+        }
+        zoomCenterPx = Math.max(rect.left, Math.min(rect.right, zoomCenterPx));
+        const centerY = rect.top + rect.height / 2;
+
+        chart.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true, clientX: zoomCenterPx, clientY: centerY, view: window
+        }));
+        await new Promise(r => requestAnimationFrame(r));
+
+        chart.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: zoomCenterPx, clientY: centerY,
+          deltaY: -120, deltaMode: 0
+        }));
+
+        await new Promise(r => requestAnimationFrame(r));
+        await BiketerraIntegration.triggerChartUpdate();
+        visibleRange = BiketerraIntegration.getChartVisibleRange();
+        if (!visibleRange) break;
+        iterations++;
+      }
+
+      if (!visibleRange) {
+        updateStatus('Lost chart range during zoom in', 'error');
+        return;
+      }
+
+      // Apply the brunnel
+      await BiketerraIntegration.simulateSelection(
+        brunnel.startDistance, brunnel.endDistance, null, visibleRange
+      );
+      await BiketerraIntegration.clickBrunnelButton(brunnel.type);
+
+      // Mark as applied
+      appliedBrunnelIds.add(brunnel.id);
+      item.classList.add('applied');
+
+      // Update status
+      const remaining = locatedBrunnels.length - appliedBrunnelIds.size;
+      if (remaining === 0) {
+        updateStatus(`All ${locatedBrunnels.length} brunnel(s) applied!`, 'success');
+        if (applyBtn) applyBtn.disabled = true;
+      } else {
+        updateStatus(`Applied ${brunnel.name}. ${remaining} remaining.`, 'success');
+      }
+    } catch (error) {
+      updateStatus(`Error: ${error.message}`, 'error');
+    }
+  }
+
+  async function handleApplyAllBrunnels() {
+    const applyBtn = panelElement?.querySelector('#bt-applyBtn');
+
+    // Filter to only non-applied brunnels
+    const remaining = locatedBrunnels.filter(b => !appliedBrunnelIds.has(b.id));
+
+    if (remaining.length === 0) {
+      if (applyBtn) applyBtn.disabled = true;
+      return;
+    }
+
+    updateStatus('Applying brunnels...', 'loading');
+    showProgress(`Applying ${remaining.length} brunnels with precision zoom...`);
+    if (applyBtn) applyBtn.disabled = true;
+
+    try {
+      await loadTurf();
+      const simpleRoute = await BiketerraIntegration.fetchRouteData();
+      const route = BiketerraIntegration.parseRouteData(simpleRoute);
+
+      // Sort by start distance
+      const sorted = [...remaining].sort((a, b) => a.startDistance - b.startDistance);
+
+      await BiketerraIntegration.applyAllBrunnels(sorted, route.totalDistance);
+
+      // Mark all as applied in UI
+      for (const brunnel of sorted) {
+        appliedBrunnelIds.add(brunnel.id);
+        const item = panelElement?.querySelector(`.bt-brunnel-item[data-id="${brunnel.id}"]`);
+        if (item) item.classList.add('applied');
+      }
+
+      updateStatus(`Applied ${sorted.length} brunnel(s) successfully!`, 'success');
+      hideProgress();
+    } catch (error) {
+      updateStatus(`Error: ${error.message}`, 'error');
+      hideProgress();
+      if (applyBtn) applyBtn.disabled = false;
+    }
+  }
+
+  // ============================================================================
   // Main Location Pipeline
   // ============================================================================
 
@@ -1216,6 +1609,24 @@ out geom qt;`;
   // ============================================================================
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'togglePanel') {
+      togglePanel();
+      sendResponse({ success: true });
+      return false;
+    }
+
+    if (message.action === 'showPanel') {
+      showPanel();
+      sendResponse({ success: true });
+      return false;
+    }
+
+    if (message.action === 'hidePanel') {
+      hidePanel();
+      sendResponse({ success: true });
+      return false;
+    }
+
     if (message.action === 'locateBrunnels') {
       locateBrunnels(message.options)
         .then(result => sendResponse(result))
