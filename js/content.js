@@ -769,6 +769,79 @@ out geom qt;`;
       return distanceKm / totalDistanceKm;
     },
 
+    // Find track points within a distance range and get expanded range if needed
+    // Returns { pointCount, expandedRange } where expandedRange includes surrounding points
+    getTrackPointsInRange(routeCoords, startKm, endKm) {
+      const startMeters = startKm * 1000;
+      const endMeters = endKm * 1000;
+
+      let firstInside = -1;
+      let lastInside = -1;
+
+      // Find track points strictly inside the range
+      for (let i = 0; i < routeCoords.length; i++) {
+        const dist = routeCoords[i].distance;
+        if (dist >= startMeters && dist <= endMeters) {
+          if (firstInside === -1) firstInside = i;
+          lastInside = i;
+        }
+      }
+
+      const pointCount = firstInside === -1 ? 0 : (lastInside - firstInside + 1);
+
+      // If fewer than 2 points, find surrounding track points
+      if (pointCount < 2) {
+        let prevIndex = -1;
+        let nextIndex = -1;
+
+        for (let i = 0; i < routeCoords.length; i++) {
+          const dist = routeCoords[i].distance;
+          if (dist < startMeters) {
+            prevIndex = i;
+          } else if (dist > endMeters && nextIndex === -1) {
+            nextIndex = i;
+            break;
+          }
+        }
+
+        // Default to first/last if not found
+        if (prevIndex === -1) prevIndex = 0;
+        if (nextIndex === -1) nextIndex = routeCoords.length - 1;
+
+        // Extend by 1 dam (10m) before and after to ensure map zoom triggers
+        const totalDistanceKm = routeCoords[routeCoords.length - 1].distance / 1000;
+        const paddingKm = 0.01; // 10 meters = 1 decameter
+
+        return {
+          pointCount,
+          expandedRange: {
+            startKm: Math.max(0, routeCoords[prevIndex].distance / 1000 - paddingKm),
+            endKm: Math.min(totalDistanceKm, routeCoords[nextIndex].distance / 1000 + paddingKm)
+          }
+        };
+      }
+
+      return { pointCount, expandedRange: null };
+    },
+
+    // Simulate a right-click to deselect
+    async rightClickToDeselect() {
+      const chart = this.getElevationChart();
+      if (!chart) return;
+
+      const rect = chart.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      chart.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, cancelable: true, view: window,
+        clientX: centerX, clientY: centerY,
+        button: 2, buttons: 2
+      }));
+
+      await new Promise(r => requestAnimationFrame(r));
+    },
+
     // Get the current visible range of the elevation chart (in km)
     // Uses intermediate tick marks for higher precision when available
     getChartVisibleRange() {
@@ -1139,14 +1212,28 @@ out geom qt;`;
     },
 
     // Apply a single brunnel (assumes chart is already zoomed)
+    // routeCoords is required for track point workaround
     // If visibleRange is provided, skips chart updates (for batch operations)
-    async applyBrunnel(brunnel, totalDistance, visibleRange = null) {
+    async applyBrunnel(brunnel, totalDistance, routeCoords, visibleRange = null) {
       const startKm = brunnel.startDistance;
       const endKm = brunnel.endDistance;
-      const spanMeters = (endKm - startKm) * 1000;
 
+      // Check if routespan contains at least 2 track points
+      const trackPointInfo = this.getTrackPointsInRange(routeCoords, startKm, endKm);
 
-      // Make the selection using actual km values (works even if off-screen)
+      // If fewer than 2 track points, do the wider selection workaround
+      if (trackPointInfo.expandedRange) {
+        // First select the expanded range (triggers map zoom)
+        await this.simulateSelection(
+          trackPointInfo.expandedRange.startKm,
+          trackPointInfo.expandedRange.endKm,
+          totalDistance, visibleRange
+        );
+        // Right-click to deselect
+        await this.rightClickToDeselect();
+      }
+
+      // Make the selection using actual km values
       await this.simulateSelection(startKm, endKm, totalDistance, visibleRange);
 
       // Click the appropriate button
@@ -1154,9 +1241,8 @@ out geom qt;`;
     },
 
     // Apply multiple brunnels with precision zoom
-    async applyAllBrunnels(brunnels, totalDistance) {
+    async applyAllBrunnels(brunnels, totalDistance, routeCoords) {
       if (brunnels.length === 0) return;
-
 
       // Zoom to a good precision level (500m visible range)
       await this.zoomToPrecision(totalDistance);
@@ -1167,7 +1253,7 @@ out geom qt;`;
 
       // Apply each brunnel (selection works even when off-screen)
       for (const brunnel of brunnels) {
-        await this.applyBrunnel(brunnel, totalDistance, visibleRange);
+        await this.applyBrunnel(brunnel, totalDistance, routeCoords, visibleRange);
       }
 
     }
@@ -1481,7 +1567,28 @@ out geom qt;`;
         return;
       }
 
-      // Apply the brunnel
+      // Fetch route data to check track points
+      const simpleRoute = await BiketerraIntegration.fetchRouteData();
+      const route = BiketerraIntegration.parseRouteData(simpleRoute);
+
+      // Check if routespan contains at least 2 track points
+      const trackPointInfo = BiketerraIntegration.getTrackPointsInRange(
+        route.coordinates, brunnel.startDistance, brunnel.endDistance
+      );
+
+      // If fewer than 2 track points, do the wider selection workaround
+      if (trackPointInfo.expandedRange) {
+        // First select the expanded range (triggers map zoom)
+        await BiketerraIntegration.simulateSelection(
+          trackPointInfo.expandedRange.startKm,
+          trackPointInfo.expandedRange.endKm,
+          null, visibleRange
+        );
+        // Right-click to deselect
+        await BiketerraIntegration.rightClickToDeselect();
+      }
+
+      // Apply the brunnel with actual range
       await BiketerraIntegration.simulateSelection(
         brunnel.startDistance, brunnel.endDistance, null, visibleRange
       );
@@ -1527,7 +1634,7 @@ out geom qt;`;
       // Sort by start distance
       const sorted = [...remaining].sort((a, b) => a.startDistance - b.startDistance);
 
-      await BiketerraIntegration.applyAllBrunnels(sorted, route.totalDistance);
+      await BiketerraIntegration.applyAllBrunnels(sorted, route.totalDistance, route.coordinates);
 
       // Mark all as applied in UI
       for (const brunnel of sorted) {
