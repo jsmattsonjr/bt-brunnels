@@ -1,14 +1,14 @@
 # Biketerra Brunnels
 
-A Chrome extension that automatically detects bridges and tunnels ("brunnels") from OpenStreetMap and applies them to routes in the [Biketerra](https://biketerra.com) editor.
+A Chrome extension that automatically locates bridges and tunnels ("brunnels") from OpenStreetMap and applies them to routes in the [Biketerra](https://biketerra.com) editor.
 
 ![Biketerra Brunnels Extension](brunnels.png)
 
 ## Features
 
-- Detects bridges and tunnels along your route using OpenStreetMap data
+- Locates bridges and tunnels along your route using OpenStreetMap data
 - Filters brunnels by containment, bearing alignment, and overlap resolution
-- One-click application of all detected brunnels to your route
+- One-click application of all located brunnels to your route
 
 ## Installation
 
@@ -35,12 +35,12 @@ Since this extension isn't published to the Chrome Web Store, you'll need to ins
    - **Route buffer**: Containment tolerance for filtering (default: 3m)
    - **Bearing tolerance**: Alignment tolerance in degrees (default: 20°)
 4. Click **"Locate Brunnels"**
-5. Review the detected bridges and tunnels in the list
+5. Review the located bridges and tunnels in the list
 6. Click **"Apply All to Route"** to add them to Biketerra
 
 ## How It Works
 
-### Brunnel Detection
+### Brunnel Location
 
 The extension queries OpenStreetMap via the Overpass API for bridges and tunnels within a bounding box around your route. It excludes:
 - Waterways
