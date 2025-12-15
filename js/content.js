@@ -1670,7 +1670,7 @@ out geom qt;`;
     const bounds = GeometryUtils.calculateBounds(route.coordinates);
     const expandedBounds = GeometryUtils.expandBounds(bounds, queryBuffer);
 
-    chrome.runtime.sendMessage({ action: 'progress', text: 'Querying OpenStreetMap...' });
+    showProgress('Querying OpenStreetMap...');
     const overpassData = await OverpassAPI.queryBrunnels(expandedBounds);
 
     // Create Brunnel instances
