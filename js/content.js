@@ -1200,16 +1200,59 @@ out geom qt;`;
       return visibleRange;
     },
 
-    // Apply a single brunnel with zoom to ensure visibility
-    // routeCoords is required for track point workaround
-    async applyBrunnel(brunnel, routeCoords) {
+    // Zoom to 1km range from the left edge of the chart
+    // Used for batch operations where we zoom once before applying multiple brunnels
+    async zoomToTargetRange() {
+      const chart = this.getElevationChart();
+      if (!chart) return null;
+
+      await this.triggerChartUpdate();
+      let visibleRange = this.getChartVisibleRange();
+      if (!visibleRange) return null;
+
+      const maxRangeKm = 1.0;
+      let iterations = 0;
+      const maxIterations = 50;
+
+      // Position mouse on left edge and zoom in until range is <= 1km
+      const rect = chart.getBoundingClientRect();
+      const leftEdgePx = rect.left + 10;
+      const centerY = rect.top + rect.height / 2;
+
+      while (visibleRange.rangeKm > maxRangeKm && iterations < maxIterations) {
+        chart.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true, clientX: leftEdgePx, clientY: centerY, view: window
+        }));
+        await new Promise(r => requestAnimationFrame(r));
+
+        chart.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: leftEdgePx, clientY: centerY,
+          deltaY: -120, deltaMode: 0
+        }));
+
+        await new Promise(r => requestAnimationFrame(r));
+        await this.triggerChartUpdate();
+        visibleRange = this.getChartVisibleRange();
+        if (!visibleRange) return null;
+        iterations++;
+      }
+
+      return visibleRange;
+    },
+
+    // Apply a single brunnel to the route
+    // When zoom=true (default), zooms to the brunnel first
+    // When zoom=false, visibleRange must be provided from a prior zoom operation
+    async applyBrunnel(brunnel, routeCoords, zoom = true, visibleRange = null) {
       const startKm = brunnel.startDistance;
       const endKm = brunnel.endDistance;
 
-      // Zoom to show this brunnel
-      const visibleRange = await this.zoomToBrunnel(brunnel);
-      if (!visibleRange) {
-        throw new Error('Could not zoom to brunnel');
+      if (zoom) {
+        visibleRange = await this.zoomToBrunnel(brunnel);
+        if (!visibleRange) {
+          throw new Error('Could not zoom to brunnel');
+        }
       }
 
       // Check if routespan contains at least 2 track points
@@ -1234,13 +1277,19 @@ out geom qt;`;
       await this.clickBrunnelButton(brunnel.type);
     },
 
-    // Apply multiple brunnels, zooming to each one
+    // Apply multiple brunnels with a single initial zoom
     async applyAllBrunnels(brunnels, routeCoords) {
       if (brunnels.length === 0) return;
 
-      // Apply each brunnel with zoom
+      // Zoom once from left edge to target range
+      const visibleRange = await this.zoomToTargetRange();
+      if (!visibleRange) {
+        throw new Error('Could not zoom to target range');
+      }
+
+      // Apply each brunnel without per-brunnel zoom
       for (const brunnel of brunnels) {
-        await this.applyBrunnel(brunnel, routeCoords);
+        await this.applyBrunnel(brunnel, routeCoords, false, visibleRange);
       }
     }
   };
