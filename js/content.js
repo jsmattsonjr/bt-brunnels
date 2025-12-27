@@ -311,10 +311,10 @@ out count;
 out geom qt;
 (
   (
-    way[tunnel]${baseFilters}(if:!is_closed());
+    way[tunnel]["tunnel"!="building_passage"]${baseFilters}(if:!is_closed());
     - way[tunnel]${railwayExclusion}
   );
-  way[tunnel][highway=cycleway](if:!is_closed());
+  way[tunnel]["tunnel"!="building_passage"][highway=cycleway](if:!is_closed());
 );
 out count;
 out geom qt;`;
