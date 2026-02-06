@@ -274,23 +274,63 @@
 
   const OverpassAPI = {
     OVERPASS_URL: 'https://overpass-api.de/api/interpreter',
+    MAX_RETRIES: 5,
+    BASE_DELAY_MS: 200,
+    MAX_JITTER_MS: 200,
+    RETRYABLE_STATUS_CODES: [429, 500, 502, 503, 504],
 
     async queryBrunnels(bounds, options = {}) {
       const { timeout = 30 } = options;
       const query = this.buildOverpassQuery(bounds, timeout);
 
-      const response = await fetch(this.OVERPASS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`
-      });
+      let lastError;
+      for (let attempt = 0; attempt <= this.MAX_RETRIES; attempt++) {
+        try {
+          const response = await fetch(this.OVERPASS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `data=${encodeURIComponent(query)}`
+          });
 
-      if (!response.ok) {
-        throw new Error(`Overpass API error: ${response.status}`);
+          if (response.ok) {
+            const data = await response.json();
+            return this.processOverpassData(data);
+          }
+
+          // Check if this is a retryable error
+          if (this.RETRYABLE_STATUS_CODES.includes(response.status) && attempt < this.MAX_RETRIES) {
+            const delay = this._calculateBackoffDelay(attempt);
+            console.log(`Overpass API returned ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.MAX_RETRIES + 1})`);
+            await this._sleep(delay);
+            continue;
+          }
+
+          throw new Error(`Overpass API error: ${response.status}`);
+        } catch (error) {
+          lastError = error;
+          // Retry on network errors (fetch throws on network failure)
+          if (error.name === 'TypeError' && attempt < this.MAX_RETRIES) {
+            const delay = this._calculateBackoffDelay(attempt);
+            console.log(`Overpass API network error, retrying in ${delay}ms (attempt ${attempt + 1}/${this.MAX_RETRIES + 1})`);
+            await this._sleep(delay);
+            continue;
+          }
+          throw error;
+        }
       }
+      throw lastError;
+    },
 
-      const data = await response.json();
-      return this.processOverpassData(data);
+    _calculateBackoffDelay(attempt) {
+      // Exponential backoff: 200ms, 400ms, 800ms, 1.6s, 3.2s, 6.4s
+      const exponentialDelay = this.BASE_DELAY_MS * Math.pow(2, attempt);
+      // Add random jitter to prevent thundering herd
+      const jitter = Math.random() * this.MAX_JITTER_MS;
+      return exponentialDelay + jitter;
+    },
+
+    _sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
     },
 
     buildOverpassQuery(bounds, timeout) {
