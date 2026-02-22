@@ -413,7 +413,7 @@ out geom qt;`;
       this.name = data.name;
       this.geometry = data.geometry;
       this.turfPoints = this.geometry.map(coord =>
-        turf.point(CoordinateUtils.toTurfCoords([coord])[0])
+        turf.point([coord.lon, coord.lat])
       );
       this.routeSpan = null;
       this.exclusionReason = null;
