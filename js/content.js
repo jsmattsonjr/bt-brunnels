@@ -1576,13 +1576,19 @@ out geom qt;`;
       const lengthM = ((brunnel.endDistance - brunnel.startDistance) * 1000).toFixed(0);
 
       const icon = brunnel.type === 'bridge' ? BRIDGE_ICON : TUNNEL_ICON;
-      item.innerHTML = `
-        ${icon}
-        <div class="bt-brunnel-info">
-          <div class="bt-brunnel-name">${brunnel.name}</div>
-          <div class="bt-brunnel-span">${startKm} - ${endKm} km (${lengthM}m)</div>
-        </div>
-      `;
+      item.innerHTML = icon;
+
+      const info = document.createElement('div');
+      info.className = 'bt-brunnel-info';
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'bt-brunnel-name';
+      nameDiv.textContent = brunnel.name;
+      const spanDiv = document.createElement('div');
+      spanDiv.className = 'bt-brunnel-span';
+      spanDiv.textContent = `${startKm} - ${endKm} km (${lengthM}m)`;
+      info.appendChild(nameDiv);
+      info.appendChild(spanDiv);
+      item.appendChild(info);
 
       item.addEventListener('click', () => handleApplySingleBrunnel(brunnel, item));
       resultsDiv.appendChild(item);
