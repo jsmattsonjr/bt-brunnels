@@ -23,7 +23,6 @@
   let panelElement = null;
   let locatedBrunnels = [];
   let appliedBrunnelIds = new Set();
-  let totalDistance = 0;
 
   // ============================================================================
   // Turf.js CSP-compatible subset loaded via manifest content_scripts
@@ -154,7 +153,6 @@
       const dist1 = p1.distance; // meters
       const dist2 = p2.distance; // meters
       const interpolatedDistance = dist1 + t * (dist2 - dist1);
-
 
       // Return in km
       return interpolatedDistance / 1000;
@@ -379,7 +377,6 @@ out geom qt;`;
             id: element.id,
             tags: element.tags || {},
             geometry: validGeometry,
-            nodes: element.nodes || [],
             type: currentType === 'bridges' ? 'bridge' : 'tunnel',
             name: this.extractName(element.tags)
           };
@@ -425,7 +422,6 @@ out geom qt;`;
       this.turfPoints = this.geometry.map(coord =>
         turf.point(CoordinateUtils.toTurfCoords([coord])[0])
       );
-      this.nodes = data.nodes || [];
       this.routeSpan = null;
       this.exclusionReason = null;
     }
@@ -439,8 +435,7 @@ out geom qt;`;
           type: 'bridge',
           name: bridge.name,
           tags: bridge.tags,
-          geometry: bridge.geometry,
-          nodes: bridge.nodes || []
+          geometry: bridge.geometry
         }));
       }
 
@@ -450,8 +445,7 @@ out geom qt;`;
           type: 'tunnel',
           name: tunnel.name,
           tags: tunnel.tags,
-          geometry: tunnel.geometry,
-          nodes: tunnel.nodes || []
+          geometry: tunnel.geometry
         }));
       }
 
@@ -653,7 +647,6 @@ out geom qt;`;
         throw new Error('Could not extract route ID from URL');
       }
 
-
       // Fetch the __data.json endpoint
       const dataUrl = `https://biketerra.com/routes/new/__data.json?id=${routeId}`;
       const response = await fetch(dataUrl, {
@@ -787,11 +780,6 @@ out geom qt;`;
       return document.querySelector('.elev-chart');
     },
 
-    // Get the SVG element inside the elevation chart
-    getElevationSvg() {
-      return document.querySelector('.elev-chart .alt-svg');
-    },
-
     // Get bridge button
     getBridgeButton() {
       const img = document.querySelector('img[src*="ico-bridge"]');
@@ -802,11 +790,6 @@ out geom qt;`;
     getTunnelButton() {
       const img = document.querySelector('img[src*="ico-tunnel"]');
       return img ? img.closest('.toolbar-item') : null;
-    },
-
-    // Convert distance (km) to x-position (0-1) on elevation chart
-    distanceToX(distanceKm, totalDistanceKm) {
-      return distanceKm / totalDistanceKm;
     },
 
     // Find track points within a distance range and get expanded range if needed
@@ -1003,34 +986,15 @@ out geom qt;`;
 
     // Simulate selection on elevation chart with precise positioning
     // Uses the visible range from chart scale ticks for accurate km-to-pixel conversion
-    // If visibleRange is provided, skips the chart update (for batch operations)
-    async simulateSelection(startKm, endKm, totalDistanceKm, visibleRange = null) {
+    async simulateSelection(startKm, endKm, visibleRange) {
       const chart = this.getElevationChart();
       if (!chart) throw new Error('Elevation chart not found');
 
-      // Clear any existing selection first (skip if we have cached visibleRange)
       if (!visibleRange) {
-        await this.clearSelection();
-        // Trigger chart update to ensure labels reflect current zoom
-        await this.triggerChartUpdate();
+        throw new Error('visibleRange is required');
       }
 
       const rect = chart.getBoundingClientRect();
-      if (!visibleRange) {
-        visibleRange = this.getChartVisibleRange();
-      }
-
-      if (!visibleRange) {
-        console.warn('Could not get visible range, falling back to full route');
-        // Fall back to assuming full route is visible
-        const startX = startKm / totalDistanceKm;
-        const endX = endKm / totalDistanceKm;
-        const startPx = rect.left + (startX * rect.width);
-        const endPx = rect.left + (endX * rect.width);
-        const centerY = rect.top + (rect.height / 2);
-        return this._performSelection(chart, rect, startPx, endPx, centerY);
-      }
-
 
       // Calculate pixel positions based on visible range
       // Use percentPerKm if available for higher precision
@@ -1050,9 +1014,6 @@ out geom qt;`;
       }
 
       const centerY = rect.top + (rect.height / 2);
-      const pixelWidth = endPx - startPx;
-      const metersPerPixel = (visibleRange.rangeKm * 1000) / rect.width;
-
 
       // IMPORTANT: First move mouse to start position WITHOUT shift
       // This ensures Svelte's internal cursor position is at our start
@@ -1069,7 +1030,6 @@ out geom qt;`;
         bubbles: true, key: 'Shift', code: 'ShiftLeft', shiftKey: true, view: window
       }));
       await new Promise(r => requestAnimationFrame(r));
-
 
       // Mouse down at start (this anchors the selection start)
       chart.dispatchEvent(new MouseEvent('mousedown', {
@@ -1091,7 +1051,6 @@ out geom qt;`;
         await new Promise(r => requestAnimationFrame(r));
       }
 
-
       // Mouse up at end position - this finalizes the selection
       chart.dispatchEvent(new MouseEvent('mouseup', {
         bubbles: true, cancelable: true, view: window,
@@ -1105,10 +1064,6 @@ out geom qt;`;
         bubbles: true, key: 'Shift', code: 'ShiftLeft', shiftKey: false, view: window
       }));
       await new Promise(r => requestAnimationFrame(r));
-
-
-      // Log button states
-      const bridgeBtn = this.getBridgeButton();
     },
 
     // Ensure the Brunnels overlay is selected in the toolbar
@@ -1166,18 +1121,12 @@ out geom qt;`;
         throw new Error(`${type} button not found`);
       }
 
-
-      // Find all clickable elements within the button
       const img = button.querySelector('img');
       const icon = button.querySelector('.toolbar-item-icon');
-
-
-      // Try dispatching a proper mouse click event instead of .click()
       const clickTarget = img || icon || button;
       const rect = clickTarget.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
-
 
       // Dispatch mousedown, mouseup, click sequence
       const mouseDown = new MouseEvent('mousedown', {
@@ -1375,14 +1324,14 @@ out geom qt;`;
           await this.simulateSelection(
             trackPointInfo.expandedRange.startKm,
             trackPointInfo.expandedRange.endKm,
-            null, visibleRange
+            visibleRange
           );
           // Right-click to deselect
           await this.rightClickToDeselect();
         }
 
         // Make the selection using actual km values
-        await this.simulateSelection(startKm, endKm, null, visibleRange);
+        await this.simulateSelection(startKm, endKm, visibleRange);
 
         // Click the appropriate button
         await this.clickBrunnelButton(brunnel.type);
@@ -1552,7 +1501,7 @@ out geom qt;`;
     }
   }
 
-  function displayResults(brunnels, distance) {
+  function displayResults(brunnels) {
     const resultsDiv = panelElement?.querySelector('#bt-results');
     if (!resultsDiv) return;
 
@@ -1611,10 +1560,9 @@ out geom qt;`;
       const result = await locateBrunnels({ queryBuffer, routeBuffer, bearingTolerance });
 
       locatedBrunnels = result.brunnels;
-      totalDistance = result.totalDistance;
       appliedBrunnelIds = new Set();
 
-      displayResults(locatedBrunnels, totalDistance);
+      displayResults(locatedBrunnels);
 
       updateStatus(`Found ${locatedBrunnels.length} brunnel(s). Click to apply individually.`, 'success');
       if (applyBtn) applyBtn.disabled = locatedBrunnels.length === 0;
