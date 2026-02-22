@@ -371,7 +371,6 @@ out geom qt;`;
 
           const brunnel = {
             id: element.id,
-            tags: element.tags || {},
             geometry: validGeometry,
             type: currentType === 'bridges' ? 'bridge' : 'tunnel',
             name: this.extractName(element.tags)
@@ -412,9 +411,7 @@ out geom qt;`;
       this.id = data.id;
       this.type = data.type;
       this.name = data.name;
-      this.tags = data.tags;
       this.geometry = data.geometry;
-      this.turfLineString = turf.lineString(CoordinateUtils.toTurfCoords(this.geometry));
       this.turfPoints = this.geometry.map(coord =>
         turf.point(CoordinateUtils.toTurfCoords([coord])[0])
       );
@@ -430,7 +427,6 @@ out geom qt;`;
           id: bridge.id,
           type: 'bridge',
           name: bridge.name,
-          tags: bridge.tags,
           geometry: bridge.geometry
         }));
       }
@@ -440,7 +436,6 @@ out geom qt;`;
           id: tunnel.id,
           type: 'tunnel',
           name: tunnel.name,
-          tags: tunnel.tags,
           geometry: tunnel.geometry
         }));
       }
@@ -758,15 +753,11 @@ out geom qt;`;
         distance: point[3]
       }));
 
-      // Distance is in meters, convert to km for totalDistance
-      const totalDistance = coords[coords.length - 1].distance / 1000;
-
       const turfCoords = coords.map(c => [c.lon, c.lat]);
       const turfLineString = turf.lineString(turfCoords);
 
       return {
         coordinates: coords,
-        totalDistance,
         turfLineString
       };
     },
@@ -921,14 +912,13 @@ out geom qt;`;
               startKm: preciseStartKm,
               endKm: preciseEndKm,
               rangeKm: preciseEndKm - preciseStartKm,
-              percentPerKm,
-              precise: true
+              percentPerKm
             };
           }
         }
       }
 
-      return { startKm, endKm, rangeKm: endKm - startKm, precise: false };
+      return { startKm, endKm, rangeKm: endKm - startKm };
     },
 
     // Trigger mouse interaction to update chart labels
@@ -947,36 +937,6 @@ out geom qt;`;
       chart.dispatchEvent(new MouseEvent('mousemove', {
         bubbles: true, clientX: centerX, clientY: centerY, view: window
       }));
-      await new Promise(r => requestAnimationFrame(r));
-    },
-
-    // Clear any existing selection
-    async clearSelection() {
-      const chart = this.getElevationChart();
-      if (!chart) return;
-
-      // Click somewhere on the chart without shift to deselect
-      const rect = chart.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-
-      // Make sure shift is not pressed
-      window.dispatchEvent(new KeyboardEvent('keyup', {
-        bubbles: true, key: 'Shift', code: 'ShiftLeft', shiftKey: false, view: window
-      }));
-
-      // Simple click to deselect
-      chart.dispatchEvent(new MouseEvent('mousedown', {
-        bubbles: true, cancelable: true, view: window,
-        clientX: centerX, clientY: centerY,
-        button: 0, buttons: 1, shiftKey: false
-      }));
-      chart.dispatchEvent(new MouseEvent('mouseup', {
-        bubbles: true, cancelable: true, view: window,
-        clientX: centerX, clientY: centerY,
-        button: 0, buttons: 0, shiftKey: false
-      }));
-
       await new Promise(r => requestAnimationFrame(r));
     },
 
@@ -1579,8 +1539,6 @@ out geom qt;`;
     updateStatus(`Applying ${brunnel.name}...`, 'loading');
 
     try {
-      await loadTurf();
-
       // Apply the brunnel (handles zoom and track point workaround)
       await BiketerraIntegration.applyBrunnel(brunnel, cachedRoute.coordinates);
 
@@ -1617,8 +1575,6 @@ out geom qt;`;
     if (applyBtn) applyBtn.disabled = true;
 
     try {
-      await loadTurf();
-
       // Sort by start distance
       const sorted = [...remaining].sort((a, b) => a.startDistance - b.startDistance);
 
@@ -1687,7 +1643,6 @@ out geom qt;`;
     // OSM often divides bridges/tunnels into multiple components
     const mergedBrunnels = BrunnelAnalysis.mergeAdjacentBrunnels(includedBrunnels);
 
-    // Return simplified data for popup
     return {
       brunnels: mergedBrunnels.map(b => ({
         id: b.id,
@@ -1695,8 +1650,7 @@ out geom qt;`;
         name: b.name,
         startDistance: b.routeSpan.startDistance,
         endDistance: b.routeSpan.endDistance
-      })),
-      totalDistance: route.totalDistance
+      }))
     };
   }
 
