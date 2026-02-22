@@ -1328,6 +1328,25 @@ out geom qt;`;
       return visibleRange;
     },
 
+    // Show a full-page overlay to block user mouse interaction during application
+    showInteractionShield() {
+      let shield = document.getElementById('bt-interaction-shield');
+      if (!shield) {
+        shield = document.createElement('div');
+        shield.id = 'bt-interaction-shield';
+        shield.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;cursor:wait;';
+        document.body.appendChild(shield);
+      }
+      shield.style.display = 'block';
+    },
+
+    hideInteractionShield() {
+      const shield = document.getElementById('bt-interaction-shield');
+      if (shield) {
+        shield.style.display = 'none';
+      }
+    },
+
     // Apply a single brunnel to the route
     // When zoom=true (default), zooms to the brunnel first
     // When zoom=false, visibleRange must be provided from a prior zoom operation
@@ -1335,48 +1354,61 @@ out geom qt;`;
       const startKm = brunnel.startDistance;
       const endKm = brunnel.endDistance;
 
-      if (zoom) {
-        visibleRange = await this.zoomToBrunnel(brunnel);
-        if (!visibleRange) {
-          throw new Error('Could not zoom to brunnel');
+      // Show shield if this is a standalone call (not part of applyAllBrunnels)
+      const ownShield = zoom;
+      if (ownShield) this.showInteractionShield();
+
+      try {
+        if (zoom) {
+          visibleRange = await this.zoomToBrunnel(brunnel);
+          if (!visibleRange) {
+            throw new Error('Could not zoom to brunnel');
+          }
         }
+
+        // Check if routespan contains at least 2 track points
+        const trackPointInfo = this.getTrackPointsInRange(routeCoords, startKm, endKm);
+
+        // If fewer than 2 track points, do the wider selection workaround
+        if (trackPointInfo.expandedRange) {
+          // First select the expanded range (triggers map zoom)
+          await this.simulateSelection(
+            trackPointInfo.expandedRange.startKm,
+            trackPointInfo.expandedRange.endKm,
+            null, visibleRange
+          );
+          // Right-click to deselect
+          await this.rightClickToDeselect();
+        }
+
+        // Make the selection using actual km values
+        await this.simulateSelection(startKm, endKm, null, visibleRange);
+
+        // Click the appropriate button
+        await this.clickBrunnelButton(brunnel.type);
+      } finally {
+        if (ownShield) this.hideInteractionShield();
       }
-
-      // Check if routespan contains at least 2 track points
-      const trackPointInfo = this.getTrackPointsInRange(routeCoords, startKm, endKm);
-
-      // If fewer than 2 track points, do the wider selection workaround
-      if (trackPointInfo.expandedRange) {
-        // First select the expanded range (triggers map zoom)
-        await this.simulateSelection(
-          trackPointInfo.expandedRange.startKm,
-          trackPointInfo.expandedRange.endKm,
-          null, visibleRange
-        );
-        // Right-click to deselect
-        await this.rightClickToDeselect();
-      }
-
-      // Make the selection using actual km values
-      await this.simulateSelection(startKm, endKm, null, visibleRange);
-
-      // Click the appropriate button
-      await this.clickBrunnelButton(brunnel.type);
     },
 
     // Apply multiple brunnels with a single initial zoom
     async applyAllBrunnels(brunnels, routeCoords) {
       if (brunnels.length === 0) return;
 
-      // Zoom once from left edge to target range
-      const visibleRange = await this.zoomToTargetRange();
-      if (!visibleRange) {
-        throw new Error('Could not zoom to target range');
-      }
+      this.showInteractionShield();
+      try {
+        // Zoom once from left edge to target range
+        const visibleRange = await this.zoomToTargetRange();
+        if (!visibleRange) {
+          throw new Error('Could not zoom to target range');
+        }
 
-      // Apply each brunnel without per-brunnel zoom
-      for (const brunnel of brunnels) {
-        await this.applyBrunnel(brunnel, routeCoords, false, visibleRange);
+        // Apply each brunnel without per-brunnel zoom
+        for (const brunnel of brunnels) {
+          await this.applyBrunnel(brunnel, routeCoords, false, visibleRange);
+        }
+      } finally {
+        this.hideInteractionShield();
       }
     }
   };
