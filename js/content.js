@@ -113,37 +113,30 @@
       // (we need to find where turfLocationKm falls in terms of segment index)
       let turfCumulative = 0;
       let segmentIndex = 0;
+      let segmentLengthTurf = 0;
 
       for (let i = 0; i < coords.length - 1; i++) {
         const p1 = coords[i];
         const p2 = coords[i + 1];
-        const segmentDist = turf.distance(
+        segmentLengthTurf = turf.distance(
           turf.point([p1.lon, p1.lat]),
           turf.point([p2.lon, p2.lat]),
           { units: 'kilometers' }
         );
 
-        if (turfCumulative + segmentDist >= turfLocationKm) {
+        if (turfCumulative + segmentLengthTurf >= turfLocationKm) {
           segmentIndex = i;
           break;
         }
-        turfCumulative += segmentDist;
+        turfCumulative += segmentLengthTurf;
         segmentIndex = i + 1;
       }
 
       // Clamp to valid range
       segmentIndex = Math.min(segmentIndex, coords.length - 2);
 
-      const p1 = coords[segmentIndex];
-      const p2 = coords[segmentIndex + 1];
-
       // Calculate how far along this segment (using Turf distances)
       const segmentStartTurf = turfCumulative;
-      const segmentLengthTurf = turf.distance(
-        turf.point([p1.lon, p1.lat]),
-        turf.point([p2.lon, p2.lat]),
-        { units: 'kilometers' }
-      );
 
       let t = 0;
       if (segmentLengthTurf > 0) {
@@ -151,6 +144,8 @@
       }
 
       // Interpolate using Biketerra's distances
+      const p1 = coords[segmentIndex];
+      const p2 = coords[segmentIndex + 1];
       const dist1 = p1.distance; // meters
       const dist2 = p2.distance; // meters
       const interpolatedDistance = dist1 + t * (dist2 - dist1);
