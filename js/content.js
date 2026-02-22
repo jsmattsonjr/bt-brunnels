@@ -1111,8 +1111,55 @@ out geom qt;`;
       const bridgeBtn = this.getBridgeButton();
     },
 
+    // Ensure the Brunnels overlay is selected in the toolbar
+    async ensureBrunnelsOverlay() {
+      // Check if bridge/tunnel buttons are already visible
+      if (this.getBridgeButton() || this.getTunnelButton()) {
+        return;
+      }
+
+      // Find the overlay dropdown trigger (layers icon)
+      const toolbarItems = document.querySelectorAll('.toolbar-item');
+      let overlayButton = null;
+      for (const item of toolbarItems) {
+        const svg = item.querySelector('svg.toolbar-item-icon');
+        if (svg && svg.querySelector('path[d*="M12 2L2 7l10 5 10-5"]')) {
+          overlayButton = item;
+          break;
+        }
+      }
+
+      if (!overlayButton) {
+        throw new Error('Overlay selector button not found');
+      }
+
+      // Click to open the dropdown
+      overlayButton.click();
+      await new Promise(r => setTimeout(r, 100));
+
+      // Find and click the "Brunnels" option
+      const options = document.querySelectorAll('.toolbar-dropdown-option');
+      let brunnelsOption = null;
+      for (const opt of options) {
+        if (opt.textContent.trim() === 'Brunnels') {
+          brunnelsOption = opt;
+          break;
+        }
+      }
+
+      if (!brunnelsOption) {
+        throw new Error('Brunnels overlay option not found');
+      }
+
+      brunnelsOption.click();
+      await new Promise(r => setTimeout(r, 100));
+    },
+
     // Click the bridge or tunnel button
     async clickBrunnelButton(type) {
+      // Ensure the Brunnels overlay is active so bridge/tunnel buttons are visible
+      await this.ensureBrunnelsOverlay();
+
       const button = type === 'bridge' ? this.getBridgeButton() : this.getTunnelButton();
       if (!button) {
         console.error(`${type} button not found`);
