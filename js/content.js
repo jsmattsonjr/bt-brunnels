@@ -1418,11 +1418,6 @@ out geom qt;`;
     return panel;
   }
 
-  function showPanel() {
-    const panel = createPanel();
-    panel.classList.remove('hidden');
-  }
-
   function hidePanel() {
     if (panelElement) {
       panelElement.classList.add('hidden');
@@ -1665,17 +1660,6 @@ out geom qt;`;
       return false;
     }
 
-    if (message.action === 'showPanel') {
-      showPanel();
-      sendResponse({ success: true });
-      return false;
-    }
-
-    if (message.action === 'hidePanel') {
-      hidePanel();
-      sendResponse({ success: true });
-      return false;
-    }
 
   });
 
