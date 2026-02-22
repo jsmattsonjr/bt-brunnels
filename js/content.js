@@ -23,6 +23,7 @@
   let panelElement = null;
   let locatedBrunnels = [];
   let appliedBrunnelIds = new Set();
+  let cachedRoute = null;
 
   // ============================================================================
   // Turf.js CSP-compatible subset loaded via manifest content_scripts
@@ -1585,12 +1586,8 @@ out geom qt;`;
     try {
       await loadTurf();
 
-      // Fetch route data for track point workaround
-      const simpleRoute = await BiketerraIntegration.fetchRouteData();
-      const route = BiketerraIntegration.parseRouteData(simpleRoute);
-
       // Apply the brunnel (handles zoom and track point workaround)
-      await BiketerraIntegration.applyBrunnel(brunnel, route.coordinates);
+      await BiketerraIntegration.applyBrunnel(brunnel, cachedRoute.coordinates);
 
       // Mark as applied
       appliedBrunnelIds.add(brunnel.id);
@@ -1626,13 +1623,11 @@ out geom qt;`;
 
     try {
       await loadTurf();
-      const simpleRoute = await BiketerraIntegration.fetchRouteData();
-      const route = BiketerraIntegration.parseRouteData(simpleRoute);
 
       // Sort by start distance
       const sorted = [...remaining].sort((a, b) => a.startDistance - b.startDistance);
 
-      await BiketerraIntegration.applyAllBrunnels(sorted, route.coordinates);
+      await BiketerraIntegration.applyAllBrunnels(sorted, cachedRoute.coordinates);
 
       // Mark all as applied in UI
       for (const brunnel of sorted) {
@@ -1660,9 +1655,10 @@ out geom qt;`;
     // Load Turf.js
     await loadTurf();
 
-    // Fetch route data from Biketerra API
+    // Fetch route data from Biketerra API and cache for apply operations
     const simpleRoute = await BiketerraIntegration.fetchRouteData();
     const route = BiketerraIntegration.parseRouteData(simpleRoute);
+    cachedRoute = route;
 
     // Calculate bounds and query Overpass
     const bounds = GeometryUtils.calculateBounds(route.coordinates);
