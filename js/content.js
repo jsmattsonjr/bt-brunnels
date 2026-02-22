@@ -479,11 +479,11 @@ out geom qt;`;
 
   const BrunnelAnalysis = {
     filterContained(brunnels, route, bufferMeters) {
-      return brunnels.filter(brunnel => {
-        const isWithin = brunnel.isWithinDistance(route, bufferMeters);
-        if (!isWithin) brunnel.exclusionReason = 'outlier';
-        return isWithin;
-      });
+      for (const brunnel of brunnels) {
+        if (!brunnel.isWithinDistance(route, bufferMeters)) {
+          brunnel.exclusionReason = 'outlier';
+        }
+      }
     },
 
     calculateRouteSpans(brunnels, route) {
