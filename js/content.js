@@ -1784,43 +1784,6 @@ out geom qt;`;
       return false;
     }
 
-    if (message.action === 'locateBrunnels') {
-      locateBrunnels(message.options)
-        .then(result => sendResponse(result))
-        .catch(error => sendResponse({ error: error.message }));
-      return true; // Async response
-    }
-
-    if (message.action === 'applyBrunnel') {
-      (async () => {
-        try {
-          await loadTurf();
-          const simpleRoute = await BiketerraIntegration.fetchRouteData();
-          const route = BiketerraIntegration.parseRouteData(simpleRoute);
-          await BiketerraIntegration.applyBrunnel(message.brunnel, route.coordinates);
-          sendResponse({ success: true });
-        } catch (error) {
-          sendResponse({ error: error.message });
-        }
-      })();
-      return true;
-    }
-
-    if (message.action === 'applyAllBrunnels') {
-      (async () => {
-        try {
-          await loadTurf();
-          const simpleRoute = await BiketerraIntegration.fetchRouteData();
-          const route = BiketerraIntegration.parseRouteData(simpleRoute);
-          await BiketerraIntegration.applyAllBrunnels(message.brunnels, route.coordinates);
-          sendResponse({ success: true });
-        } catch (error) {
-          sendResponse({ error: error.message });
-        }
-      })();
-      return true;
-    }
-
   });
 
 })();
