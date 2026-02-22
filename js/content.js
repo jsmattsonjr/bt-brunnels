@@ -199,8 +199,8 @@
         const brunnelBearing = turf.rhumbBearing(brunnelStart, brunnelEnd);
 
         for (let j = 0; j < routeSegment.length - 1; j++) {
-          const routeStart = turf.point(CoordinateUtils.toTurfCoords([routeSegment[j]])[0]);
-          const routeEnd = turf.point(CoordinateUtils.toTurfCoords([routeSegment[j + 1]])[0]);
+          const routeStart = turf.point([routeSegment[j].lon, routeSegment[j].lat]);
+          const routeEnd = turf.point([routeSegment[j + 1].lon, routeSegment[j + 1].lat]);
           const routeBearing = turf.rhumbBearing(routeStart, routeEnd);
 
           const bearingDiff = this.getBearingDifference(brunnelBearing, routeBearing);
