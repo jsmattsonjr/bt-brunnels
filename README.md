@@ -75,7 +75,7 @@ The extension simulates the native Biketerra workflow by:
 
 ### Rate limiting from Overpass API
 - The extension queries the public Overpass API which has rate limits
-- Wait a few minutes between queries for long routes
+- It automatically retries with backoff and honors the server's `Retry-After` header, but if you see repeated failures wait a few minutes before trying again
 
 ## Feedback
 
@@ -95,6 +95,8 @@ MIT License - Copyright (c) 2019 Morgan Herlocker
 ### OpenStreetMap / Overpass API
 
 Bridge and tunnel data is sourced from [OpenStreetMap](https://www.openstreetmap.org/) via the [Overpass API](https://overpass-api.de/).
+
+The extension identifies itself with a descriptive `User-Agent` and respects the public Overpass server's rate limits (see [drolbr/Overpass-API#791](https://github.com/drolbr/Overpass-API/issues/791)) to keep usage fair for everyone.
 
 OpenStreetMap data is available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/). © OpenStreetMap contributors.
 
