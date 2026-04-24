@@ -293,8 +293,12 @@
 
           // Check if this is a retryable error
           if (this.RETRYABLE_STATUS_CODES.includes(response.status) && attempt < this.MAX_RETRIES) {
-            const delay = this._calculateBackoffDelay(attempt);
-            console.log(`Overpass API returned ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.MAX_RETRIES + 1})`);
+            const retryAfterMs = this._parseRetryAfter(response.headers.get('Retry-After'));
+            const delay = retryAfterMs !== null
+              ? retryAfterMs + Math.random() * this.MAX_JITTER_MS
+              : this._calculateBackoffDelay(attempt);
+            const source = retryAfterMs !== null ? 'Retry-After' : 'backoff';
+            console.log(`Overpass API returned ${response.status}, retrying in ${Math.round(delay)}ms [${source}] (attempt ${attempt + 1}/${this.MAX_RETRIES + 1})`);
             await this._sleep(delay);
             continue;
           }
@@ -321,6 +325,15 @@
       // Add random jitter to prevent thundering herd
       const jitter = Math.random() * this.MAX_JITTER_MS;
       return exponentialDelay + jitter;
+    },
+
+    _parseRetryAfter(value) {
+      if (!value) return null;
+      const seconds = Number(value);
+      if (Number.isFinite(seconds)) return Math.max(0, seconds) * 1000;
+      const date = Date.parse(value);
+      if (Number.isNaN(date)) return null;
+      return Math.max(0, date - Date.now());
     },
 
     _sleep(ms) {
